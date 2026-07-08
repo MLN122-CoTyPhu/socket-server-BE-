@@ -135,6 +135,24 @@ io.on("connection", (socket) => {
     if (triggerVote && room.voteSession) {
       io.to(roomCode).emit("vote_started", room.voteSession);
     }
+
+    // Nếu quiz → broadcast quiz session (không chứa đáp án đúng)
+    if (result.triggerQuiz && room.quizSession) {
+      io.to(roomCode).emit("quiz_started", room.quizSession);
+    }
+  });
+
+  // ---------- TRẢ LỜI QUIZ (mua ô / thâu tóm) ----------
+  socket.on("answer_quiz", ({ optionIndex }) => {
+    const roomCode = socketRoomMap.get(socket.id);
+    if (!roomCode) return;
+
+    const outcome = engine.answerQuiz(roomCode, socket.id, optionIndex);
+    if (!outcome) return;
+
+    const { room, result } = outcome;
+    io.to(roomCode).emit("quiz_result", result);
+    io.to(roomCode).emit("game_update", room);
   });
 
   // ---------- BIỂU QUYẾT ----------
