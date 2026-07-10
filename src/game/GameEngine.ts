@@ -29,6 +29,10 @@ const ROLE_START_STATS: Record<PlayerRole, { money: number; autonomy: number; so
 // ============================================
 export class GameEngine {
   private rooms: Map<string, GameRoom> = new Map();
+  // roomCode → đáp án đúng ĐÃ TRỘN cho phiên quiz đang mở (không gửi cho client).
+  // Dữ liệu gốc trong boardData.ts luôn đặt đáp án đúng ở vị trí A (index 0),
+  // nên phải xáo vị trí mỗi lần mở câu hỏi để không lộ đáp án.
+  private quizCorrectIndex: Map<string, number> = new Map();
 
   // ---------- TẠO PHÒNG ----------
   createRoom(playerName: string, role: PlayerRole, socketId: string): GameRoom {
@@ -195,7 +199,8 @@ export class GameEngine {
     const cell = BOARD_CELLS.find(c => c.id === session.cellId);
     if (!cell || !cell.quiz) return null;
 
-    const correct = optionIndex === cell.quiz.correctIndex;
+    const correctIndex = this.quizCorrectIndex.get(roomCode) ?? cell.quiz.correctIndex;
+    const correct = optionIndex === correctIndex;
     let purchased = false;
 
     if (correct) {
@@ -221,13 +226,14 @@ export class GameEngine {
 
     const result: QuizResult = {
       correct,
-      correctIndex: cell.quiz.correctIndex,
+      correctIndex,
       cellId: cell.id,
       cellName: cell.name,
       playerId: player.id,
       purchased,
     };
 
+    this.quizCorrectIndex.delete(roomCode);
     room.quizSession = null;
     room.phase = "playing";
     this.checkGameEnd(room);
@@ -262,6 +268,8 @@ export class GameEngine {
     const cell = BOARD_CELLS.find(c => c.id === session.cellId);
     if (!player || !cell || !cell.quiz) return null;
 
+    const correctIndex = this.quizCorrectIndex.get(roomCode) ?? cell.quiz.correctIndex;
+
     const penalty = 30;
     player.money = Math.max(0, player.money - penalty);
     player.autonomy -= 10;
@@ -271,13 +279,14 @@ export class GameEngine {
 
     const result: QuizResult = {
       correct: false,
-      correctIndex: cell.quiz.correctIndex,
+      correctIndex,
       cellId: cell.id,
       cellName: cell.name,
       playerId: player.id,
       purchased: false,
     };
 
+    this.quizCorrectIndex.delete(roomCode);
     room.quizSession = null;
     room.phase = "playing";
     this.checkGameEnd(room);
@@ -440,16 +449,33 @@ export class GameEngine {
     return fromIndex;
   }
 
+  // ── Xáo thứ tự đáp án — dữ liệu gốc luôn để đáp án đúng ở vị trí A ──────────
+  private shuffleQuizOptions(options: string[], correctIndex: number): { options: string[]; correctIndex: number } {
+    const order = options.map((_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return {
+      options: order.map(i => options[i]),
+      correctIndex: order.indexOf(correctIndex),
+    };
+  }
+
   // ── Mở quiz để "thâu tóm" ô sở hữu được ────────────────────────────────────
   private startQuiz(room: GameRoom, player: Player, cell: BoardCell): void {
     if (!cell.quiz) return;
     room.phase = "quiz";
+
+    const shuffled = this.shuffleQuizOptions(cell.quiz.options, cell.quiz.correctIndex);
+    this.quizCorrectIndex.set(room.roomCode, shuffled.correctIndex);
+
     room.quizSession = {
       cellId: cell.id,
       cellName: cell.name,
       playerId: player.id,
       question: cell.quiz.question,
-      options: cell.quiz.options,
+      options: shuffled.options,
       price: cell.price ?? 0,
       expiresAt: Date.now() + QUIZ_TIME_MS,
     };
