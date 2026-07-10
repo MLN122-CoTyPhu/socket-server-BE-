@@ -41,6 +41,17 @@ const engine = new GameEngine();
 // Map socketId → roomCode (để xử lý disconnect nhanh)
 const socketRoomMap = new Map<string, string>();
 
+// Map roomCode → timeout handle của câu hỏi thâu tóm đang chờ (15s)
+const quizTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearQuizTimeout(roomCode: string) {
+  const t = quizTimeouts.get(roomCode);
+  if (t) {
+    clearTimeout(t);
+    quizTimeouts.delete(roomCode);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
 
@@ -136,9 +147,20 @@ io.on("connection", (socket) => {
       io.to(roomCode).emit("vote_started", room.voteSession);
     }
 
-    // Nếu quiz → broadcast quiz session (không chứa đáp án đúng)
+    // Nếu quiz → broadcast quiz session (không chứa đáp án đúng) + hẹn giờ 15s
     if (result.triggerQuiz && room.quizSession) {
       io.to(roomCode).emit("quiz_started", room.quizSession);
+
+      const { cellId, playerId } = room.quizSession;
+      clearQuizTimeout(roomCode);
+      const handle = setTimeout(() => {
+        quizTimeouts.delete(roomCode);
+        const outcome = engine.timeoutQuiz(roomCode, cellId, playerId);
+        if (!outcome) return;
+        io.to(roomCode).emit("quiz_result", outcome.result);
+        io.to(roomCode).emit("game_update", outcome.room);
+      }, 15000);
+      quizTimeouts.set(roomCode, handle);
     }
   });
 
@@ -149,6 +171,8 @@ io.on("connection", (socket) => {
 
     const outcome = engine.answerQuiz(roomCode, socket.id, optionIndex);
     if (!outcome) return;
+
+    clearQuizTimeout(roomCode);
 
     const { room, result } = outcome;
     io.to(roomCode).emit("quiz_result", result);

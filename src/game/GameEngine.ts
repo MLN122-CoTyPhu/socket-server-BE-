@@ -8,6 +8,7 @@ import { BOARD_CELLS, EVENT_CARDS } from "../data/boardData";
 
 const BOARD_SIZE   = 40;
 const PASS_GO_BONUS = 200;
+const QUIZ_TIME_MS  = 15000; // thời gian trả lời mỗi câu hỏi thâu tóm
 
 // ============================================
 // ĐIỀU KIỆN XUẤT PHÁT THEO VAI — Chương 4 Mác-Lênin
@@ -234,6 +235,42 @@ export class GameEngine {
     return { room, result };
   }
 
+  // ---------- HẾT GIỜ TRẢ LỜI QUIZ (15s) — server tự xử lý như trả lời sai ----------
+  timeoutQuiz(roomCode: string, cellId: number, playerId: string): { room: GameRoom; result: QuizResult } | null {
+    const room = this.rooms.get(roomCode);
+    if (!room || room.phase !== "quiz" || !room.quizSession) return null;
+
+    const session = room.quizSession;
+    // Đảm bảo đây vẫn là đúng phiên quiz đã hẹn giờ (tránh đụng độ nếu đã có quiz mới)
+    if (session.cellId !== cellId || session.playerId !== playerId) return null;
+
+    const player = room.players.find(p => p.id === session.playerId);
+    const cell = BOARD_CELLS.find(c => c.id === session.cellId);
+    if (!player || !cell || !cell.quiz) return null;
+
+    const penalty = 30;
+    player.money = Math.max(0, player.money - penalty);
+    player.autonomy -= 10;
+    room.log.push(`⏰ ${player.name} hết thời gian trả lời tại [${cell.name}] — mất $${penalty} chi phí cơ hội và -10 Tự chủ.`);
+
+    this.clampStats(player);
+
+    const result: QuizResult = {
+      correct: false,
+      correctIndex: cell.quiz.correctIndex,
+      cellId: cell.id,
+      cellName: cell.name,
+      playerId: player.id,
+      purchased: false,
+    };
+
+    room.quizSession = null;
+    room.phase = "playing";
+    this.checkGameEnd(room);
+
+    return { room, result };
+  }
+
   // ---------- BIỂU QUYẾT ----------
   castVote(roomCode: string, socketId: string, optionIndex: number): GameRoom | null {
     const room = this.rooms.get(roomCode);
@@ -400,6 +437,7 @@ export class GameEngine {
       question: cell.quiz.question,
       options: cell.quiz.options,
       price: cell.price ?? 0,
+      expiresAt: Date.now() + QUIZ_TIME_MS,
     };
     room.log.push(`❓ ${player.name} gặp câu hỏi thâu tóm tại [${cell.name}] — trả lời đúng để mua ô này.`);
   }
