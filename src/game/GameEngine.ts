@@ -235,6 +235,20 @@ export class GameEngine {
     return { room, result };
   }
 
+  // ---------- BẮT ĐẦU ĐẾM 15s — chỉ khi client thật sự đã hiển thị câu hỏi ----------
+  // (sau khi người chơi đã đóng modal thông tin ô / đọc xong giải thích, không tính thời gian đó)
+  startQuizClock(roomCode: string, socketId: string): QuizSession | null {
+    const room = this.rooms.get(roomCode);
+    if (!room || room.phase !== "quiz" || !room.quizSession) return null;
+
+    const session = room.quizSession;
+    const player = room.players.find(p => p.id === session.playerId);
+    if (!player || player.socketId !== socketId) return null; // chỉ người phải trả lời mới bắt đầu được đồng hồ
+
+    session.expiresAt = Date.now() + QUIZ_TIME_MS;
+    return session;
+  }
+
   // ---------- HẾT GIỜ TRẢ LỜI QUIZ (15s) — server tự xử lý như trả lời sai ----------
   timeoutQuiz(roomCode: string, cellId: number, playerId: string): { room: GameRoom; result: QuizResult } | null {
     const room = this.rooms.get(roomCode);

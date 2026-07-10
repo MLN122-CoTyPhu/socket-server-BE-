@@ -164,6 +164,7 @@ export interface ClientToServerEvents {
   roll_dice: () => void;
   cast_vote: (data: { optionIndex: number }) => void;
   answer_quiz: (data: { optionIndex: number }) => void;
+  quiz_ready: () => void;  // client báo đã hiển thị câu hỏi cho người chơi — server bắt đầu đếm 15s từ đây
   end_turn: () => void;
   leave_room: () => void;
 }
