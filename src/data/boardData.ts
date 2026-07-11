@@ -468,8 +468,8 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 30 — Vào Tù: bị chi phối hoàn toàn = mất 2 lượt (Lenin: chi phối kinh tế → chi phối chính trị)
   {
-    id: 30, name: "🚨 BỊ CHI PHỐI HOÀN TOÀN", type: "crisis",
-    description: "Bị chi phối hoàn toàn về kinh tế và chính trị — mất 2 lượt tiếp theo.",
+    id: 30, name: "🚧 ĐÌNH TRỆ SẢN XUẤT", type: "crisis",
+    description: "Vẫn di chuyển bình thường nhưng không thể thu phí thuê hay thâu tóm ô mới trong 2 lượt tiếp theo (vẫn được biểu quyết Hội đồng).",
     effect: { autonomy: -40, softPower: -20, skipTurns: 2 }
   },
   // 31
