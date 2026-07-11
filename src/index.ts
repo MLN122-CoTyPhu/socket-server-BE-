@@ -17,6 +17,7 @@ const httpServer = createServer(app);
 // CORS — cho phép Vercel frontend gọi vào
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  "http://10.10.99.160:3000",
   process.env.FRONTEND_URL || "https://co-ty-phu.vercel.app",
 ];
 
