@@ -40,9 +40,16 @@ export function createAdminRouter(engine: GameEngine): Router {
 
       const merged = rows.map((row: any) => {
         const live = engine.getRoomByCode(row.room_code);
+        const players = (row.room_players ?? []).slice().sort((a: any, b: any) => {
+          if (a.final_rank == null) return 1;
+          if (b.final_rank == null) return -1;
+          return a.final_rank - b.final_rank;
+        });
         return {
           ...row,
-          player_count: live ? live.players.filter(p => !p.hasLeft).length : row.room_players?.[0]?.count ?? 0,
+          room_players: undefined,
+          players,
+          player_count: live ? live.players.filter(p => !p.hasLeft).length : players.length,
           live_phase: live?.phase ?? null,
         };
       });
@@ -93,6 +100,19 @@ export function createAdminRouter(engine: GameEngine): Router {
       res.json({ room: updated });
     } catch (err) {
       console.error("POST /admin/rooms/:roomCode/reward error:", err);
+      res.status(500).json({ error: "Không đánh dấu được phát thưởng." });
+    }
+  });
+
+  // ---------- ĐÁNH DẤU ĐÃ PHÁT THƯỞNG CHO 1 NGƯỜI CHƠI (theo hạng bất kỳ) ----------
+  router.post("/rooms/:roomCode/players/:playerRowId/reward", requireAdmin, async (req, res) => {
+    try {
+      const { playerRowId } = req.params;
+      const { note } = req.body ?? {};
+      const updated = await db.setPlayerReward(playerRowId, note);
+      res.json({ player: updated });
+    } catch (err) {
+      console.error("POST /admin/rooms/:roomCode/players/:playerRowId/reward error:", err);
       res.status(500).json({ error: "Không đánh dấu được phát thưởng." });
     }
   });

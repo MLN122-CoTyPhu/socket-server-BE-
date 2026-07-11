@@ -110,11 +110,14 @@ export const db = {
     );
   },
 
-  // ADMIN — danh sách & chi tiết phòng
+  // ADMIN — danh sách & chi tiết phòng (kèm người chơi để hiện "Chi tiết" +
+  // lọc theo hạng mà không cần gọi thêm request cho từng phòng)
   async listRooms(filters: RoomFilters = {}) {
     let query = supabase
       .from("game_rooms")
-      .select("*, room_players(count)")
+      .select(
+        "*, room_players(id, player_name, role, is_active, has_left, final_money, final_autonomy, final_soft_power, final_score, final_rank, is_winner, reward_given, reward_given_at, reward_note)"
+      )
       .order("created_at", { ascending: false })
       .limit(filters.limit ?? 100);
 
@@ -144,7 +147,19 @@ export const db = {
     return { room, players };
   },
 
-  // ADMIN — phát thưởng
+  // ADMIN — phát thưởng cho 1 người chơi cụ thể (theo hạng bất kỳ, không chỉ người thắng)
+  async setPlayerReward(playerRowId: string, note?: string) {
+    const { data, error } = await supabase
+      .from("room_players")
+      .update({ reward_given: true, reward_given_at: new Date(), reward_note: note ?? null })
+      .eq("id", playerRowId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ADMIN — phát thưởng (giữ cho tương thích với trang /admin/winners cấp phòng)
   async setReward(roomCode: string, note?: string) {
     const { data, error } = await supabase
       .from("game_rooms")

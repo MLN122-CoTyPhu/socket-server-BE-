@@ -775,7 +775,14 @@ export class GameEngine {
       autonomy:  p.autonomy,
       softPower: p.softPower,
       score:     p.money + this.ownedAssetValue(p) + p.autonomy * 10 + p.softPower * 5,
-    })).sort((a, b) => b.score - a.score);
+    })).sort((a, b) => {
+      // Luật đã công bố: "Tự chủ = 0 → thua ngay lập tức, dù nhiều tiền/tài sản nhất" —
+      // người mất hoàn toàn tự chủ luôn rớt xuống cuối bảng xếp hạng, bất kể điểm số.
+      const aLost = a.autonomy <= 0;
+      const bLost = b.autonomy <= 0;
+      if (aLost !== bLost) return aLost ? 1 : -1;
+      return b.score - a.score;
+    });
   }
 
   private checkGameEnd(room: GameRoom): void {
