@@ -13,15 +13,20 @@ const MIN_SOFTPOWER_TO_BUY = 50; // Sức mạnh tối thiểu để thâu tóm 
 // ============================================
 // ĐIỀU KIỆN XUẤT PHÁT THEO VAI — Chương 4 Mác-Lênin
 // ============================================
-// Nước đang phát triển: ít vốn (1200$), tự chủ cao (85) — chưa bị thâu tóm nhiều
-// Việt Nam: vốn trung bình (1500$), tự chủ khá (80) — có nhà nước điều tiết,
+// Nước đang phát triển: ít vốn (2000$), tự chủ cao (85) — chưa bị thâu tóm nhiều
+// Việt Nam: vốn trung bình (2400$), tự chủ khá (80) — có nhà nước điều tiết,
 //           Quyền lực mềm cao (65) — chính sách ngoại giao đa phương
-// Tư bản tài chính: nhiều vốn (2500$) — tích lũy tư bản lớn,
+// Tư bản tài chính: nhiều vốn (3400$) — tích lũy tư bản lớn,
 //                   tự chủ thấp (45) — phụ thuộc thị trường toàn cầu, không có nhà nước bảo hộ
+//
+// Vốn khởi điểm được nâng lên (trước đây 1200/1500/2500) vì ô đắt nhất trên
+// bàn giá $780 — với mức cũ, một người chơi "Nước đang phát triển" mua đúng 1
+// ô là gần như sạch túi ngay từ đầu game. Mức mới đảm bảo mua 1 ô bất kỳ vẫn
+// còn dư ít nhất ~1200$ để tiếp tục xoay sở.
 const ROLE_START_STATS: Record<PlayerRole, { money: number; autonomy: number; softPower: number }> = {
-  developing_country: { money: 1200, autonomy: 85, softPower: 45 },
-  vietnam:            { money: 1500, autonomy: 80, softPower: 65 },
-  financial_capital:  { money: 2500, autonomy: 45, softPower: 60 },
+  developing_country: { money: 2000, autonomy: 85, softPower: 45 },
+  vietnam:            { money: 2400, autonomy: 80, softPower: 65 },
+  financial_capital:  { money: 3400, autonomy: 45, softPower: 60 },
 };
 
 // ============================================
@@ -145,11 +150,11 @@ export class GameEngine {
       if (!ownerId) {
         if (wasStalled) {
           room.log.push(`🚧 ${player.name} đang đình trệ — không thể thâu tóm ô mới tại [${cell.name}] lượt này.`);
-        } else if (player.softPower < MIN_SOFTPOWER_TO_BUY) {
-          room.log.push(
-            `⚠️ ${player.name} chưa đủ Sức mạnh để thâu tóm [${cell.name}] (cần ${MIN_SOFTPOWER_TO_BUY}, hiện có ${player.softPower}).`
-          );
         } else {
+          // Câu hỏi luôn mở ra để trả lời (học là chính) — điều kiện Tiền + Sức
+          // mạnh tối thiểu chỉ được kiểm tra ở bước MUA sau khi trả lời đúng
+          // (xem answerQuiz), tương tự cách xử lý thiếu tiền. Không chặn câu
+          // hỏi ngay từ đầu chỉ vì thiếu Sức mạnh.
           triggerQuiz = true;
           this.startQuiz(room, player, cell);
         }

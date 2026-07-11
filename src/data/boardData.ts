@@ -257,7 +257,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 3 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (điều tiết nhà nước — Lenin: công cụ thuế, ngân sách)
   {
-    id: 3, name: "🇻🇳 VIỆT NAM — Điều tiết Nhà nước", type: "vietnam",
+    id: 3, name: "VIỆT NAM — Điều tiết Nhà nước", type: "vietnam",
     description: "Rút thẻ Chính sách Nhà nước. Nhà nước Việt Nam chủ động bảo vệ nền kinh tế.",
     effect: { drawCard: true, drawCardType: "state_policy" }
   },
@@ -297,7 +297,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 8 — Ô Việt Nam: rút thẻ Toàn cầu hóa (FDI = tận dụng mặt tích cực của độc quyền)
   {
-    id: 8, name: "🇻🇳 VIỆT NAM — FDI Công nghệ cao", type: "vietnam",
+    id: 8, name: "VIỆT NAM — FDI Công nghệ cao", type: "vietnam",
     description: "Rút thẻ Toàn cầu hóa. Chủ động thu hút FDI chất lượng cao, chuyển đổi cơ cấu kinh tế.",
     effect: { drawCard: true, drawCardType: "globalization" }
   },
@@ -343,7 +343,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 14 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (thuế quan bảo hộ)
   {
-    id: 14, name: "🇻🇳 VIỆT NAM — Hàng rào Thuế quan", type: "vietnam",
+    id: 14, name: "VIỆT NAM — Hàng rào Thuế quan", type: "vietnam",
     description: "Rút thẻ Chính sách Nhà nước. Thuế quan bảo vệ sản xuất nội địa trước hàng hóa độc quyền ngoại.",
     effect: { drawCard: true, drawCardType: "state_policy" }
   },
@@ -382,7 +382,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 19 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (cảnh giác biên giới mềm)
   {
-    id: 19, name: "🇻🇳 VIỆT NAM — Cảnh giác Biên giới mềm", type: "vietnam",
+    id: 19, name: "VIỆT NAM — Cảnh giác Biên giới mềm", type: "vietnam",
     description: "Rút thẻ Chính sách Nhà nước. Nhận diện chiến lược bành trướng kinh tế núp bóng đầu tư.",
     effect: { drawCard: true, drawCardType: "state_policy" }
   },
@@ -415,7 +415,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 23 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (xây dựng nội lực)
   {
-    id: 23, name: "🇻🇳 VIỆT NAM — Xây dựng Nội lực", type: "vietnam",
+    id: 23, name: "VIỆT NAM — Xây dựng Nội lực", type: "vietnam",
     description: "Rút thẻ Chính sách Nhà nước. Khuyến khích tập đoàn trong nước đủ mạnh cạnh tranh với TNC.",
     effect: { drawCard: true, drawCardType: "state_policy" }
   },
@@ -448,7 +448,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 27 — Ô Việt Nam: rút thẻ Toàn cầu hóa (ASEAN/RCEP = khu vực hóa như chiến lược bảo vệ tập thể)
   {
-    id: 27, name: "🇻🇳 VIỆT NAM — Liên kết Khu vực ASEAN/RCEP", type: "vietnam",
+    id: 27, name: "VIỆT NAM — Liên kết Khu vực ASEAN/RCEP", type: "vietnam",
     description: "Rút thẻ Toàn cầu hóa. Tham gia ASEAN, RCEP — liên kết khu vực để bảo vệ không gian phát triển.",
     effect: { drawCard: true, drawCardType: "globalization" }
   },
@@ -481,7 +481,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 32 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (fintech nội địa = tự chủ tài chính số)
   {
-    id: 32, name: "🇻🇳 VIỆT NAM — Fintech Nội địa", type: "vietnam",
+    id: 32, name: "VIỆT NAM — Fintech Nội địa", type: "vietnam",
     description: "Rút thẻ Chính sách Nhà nước. Bảo hộ công nghệ tài chính trong nước, xây dựng chủ quyền số.",
     effect: { drawCard: true, drawCardType: "state_policy" }
   },
@@ -507,7 +507,7 @@ export const BOARD_CELLS: BoardCell[] = [
   },
   // 36 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (tiền tệ và tín dụng = đòn bẩy chỉ huy của nhà nước)
   {
-    id: 36, name: "🇻🇳 VIỆT NAM — Tiền tệ & Tín dụng", type: "vietnam",
+    id: 36, name: "VIỆT NAM — Tiền tệ & Tín dụng", type: "vietnam",
     description: "Rút thẻ Chính sách Nhà nước. Nhà nước dùng tiền tệ và tín dụng bảo vệ kinh tế vĩ mô.",
     effect: { drawCard: true, drawCardType: "state_policy" }
   },
