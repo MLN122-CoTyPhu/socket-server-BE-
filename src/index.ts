@@ -42,6 +42,19 @@ const engine = new GameEngine();
 // Map socketId → roomCode (để xử lý disconnect nhanh)
 const socketRoomMap = new Map<string, string>();
 
+// Map roomCode → timeout handle của câu hỏi thâu tóm đang chờ (15s hoặc lưới an toàn)
+const quizTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+// Lưới an toàn phòng khi client không gửi "quiz_ready" (mất kết nối...) — tránh treo ván
+const QUIZ_SAFETY_NET_MS = 90000;
+
+function clearQuizTimeout(roomCode: string) {
+  const t = quizTimeouts.get(roomCode);
+  if (t) {
+    clearTimeout(t);
+    quizTimeouts.delete(roomCode);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
 
@@ -136,6 +149,64 @@ io.on("connection", (socket) => {
     if (triggerVote && room.voteSession) {
       io.to(roomCode).emit("vote_started", room.voteSession);
     }
+
+    // Nếu quiz → broadcast quiz session (không chứa đáp án đúng).
+    // Đồng hồ 15s CHƯA bắt đầu ở đây — client sẽ báo "quiz_ready" khi thật sự
+    // hiển thị câu hỏi cho người chơi (sau khi đóng modal thông tin ô), lúc đó
+    // đồng hồ mới chạy. Ở đây chỉ đặt một lưới an toàn 90s phòng khi client
+    // không bao giờ gửi "quiz_ready" (mất kết nối, lỗi...), tránh treo ván.
+    if (result.triggerQuiz && room.quizSession) {
+      io.to(roomCode).emit("quiz_started", room.quizSession);
+
+      const { cellId, playerId } = room.quizSession;
+      clearQuizTimeout(roomCode);
+      const safetyHandle = setTimeout(() => {
+        quizTimeouts.delete(roomCode);
+        const outcome = engine.timeoutQuiz(roomCode, cellId, playerId);
+        if (!outcome) return;
+        io.to(roomCode).emit("quiz_result", outcome.result);
+        io.to(roomCode).emit("game_update", outcome.room);
+      }, QUIZ_SAFETY_NET_MS);
+      quizTimeouts.set(roomCode, safetyHandle);
+    }
+  });
+
+  // ---------- SẴN SÀNG XEM CÂU HỎI — bắt đầu đếm 15s thật sự ----------
+  socket.on("quiz_ready", () => {
+    const roomCode = socketRoomMap.get(socket.id);
+    if (!roomCode) return;
+
+    const updatedSession = engine.startQuizClock(roomCode, socket.id);
+    if (!updatedSession) return;
+
+    // Hủy lưới an toàn cũ, bắt đầu đồng hồ 15s thật sự từ đây
+    clearQuizTimeout(roomCode);
+    io.to(roomCode).emit("quiz_started", updatedSession);
+
+    const { cellId, playerId } = updatedSession;
+    const handle = setTimeout(() => {
+      quizTimeouts.delete(roomCode);
+      const outcome = engine.timeoutQuiz(roomCode, cellId, playerId);
+      if (!outcome) return;
+      io.to(roomCode).emit("quiz_result", outcome.result);
+      io.to(roomCode).emit("game_update", outcome.room);
+    }, 15000);
+    quizTimeouts.set(roomCode, handle);
+  });
+
+  // ---------- TRẢ LỜI QUIZ (mua ô / thâu tóm) ----------
+  socket.on("answer_quiz", ({ optionIndex }) => {
+    const roomCode = socketRoomMap.get(socket.id);
+    if (!roomCode) return;
+
+    const outcome = engine.answerQuiz(roomCode, socket.id, optionIndex);
+    if (!outcome) return;
+
+    clearQuizTimeout(roomCode);
+
+    const { room, result } = outcome;
+    io.to(roomCode).emit("quiz_result", result);
+    io.to(roomCode).emit("game_update", room);
   });
 
   // ---------- BIỂU QUYẾT ----------

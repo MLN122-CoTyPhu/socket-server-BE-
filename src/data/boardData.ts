@@ -1,4 +1,235 @@
-import { BoardCell, EventCard } from "../types/game";
+import { BoardCell, EventCard, QuizQuestion } from "../types/game";
+
+// ============================================
+// NGÂN HÀNG 21 CÂU HỎI THÂU TÓM — trích từ 26 câu hỏi Chương 4 Mác-Lênin
+// Mỗi câu gắn với 1 ô "ownable" (financial_capital / conglomerate / tnc).
+// Trả lời đúng + đủ tiền → mua ô (thâu tóm). Trả lời sai → phạt tiền + tự chủ.
+// ============================================
+const Q_IMF: QuizQuestion = {
+  question: "Trong thời kỳ độc quyền, ngân hàng không còn là trung gian thanh toán đơn thuần mà trở thành gì?",
+  options: [
+    "Người khống chế, chi phối mọi hoạt động kinh tế của xã hội",
+    "Một cơ quan trung lập chỉ làm nhiệm vụ giữ hộ tiền cho khách hàng",
+    "Một tổ chức từ thiện hỗ trợ vốn không hoàn lại cho doanh nghiệp nhỏ",
+    "Một chi nhánh hành chính trực thuộc hoàn toàn chính phủ",
+  ],
+  correctIndex: 0,
+};
+
+const Q_NYSE: QuizQuestion = {
+  question: "Hệ thống tài phiệt chi phối đời sống kinh tế thông qua cơ chế nào?",
+  options: [
+    "Chế độ tham dự (sở hữu cổ phần khống chế)",
+    "Ban hành luật thuế trực tiếp lên từng công dân",
+    "Kiểm soát hoàn toàn giá lương thực trong nước",
+    "Sáp nhập bắt buộc mọi doanh nghiệp vào một công ty duy nhất",
+  ],
+  correctIndex: 0,
+};
+
+const Q_CONCERN: QuizQuestion = {
+  question: "Đặc điểm chính của hình thức Concern là gì?",
+  options: [
+    "Tổ chức độc quyền đa ngành, có sự liên kết về kỹ thuật giữa các ngành",
+    "Chỉ hoạt động trong một ngành duy nhất và không mở rộng",
+    "Là thỏa thuận miệng, không có ràng buộc pháp lý giữa các bên",
+    "Chỉ thống nhất giá bán, không liên quan đến kỹ thuật sản xuất",
+  ],
+  correctIndex: 0,
+};
+
+const Q_CONGLOMERATE: QuizQuestion = {
+  question: "Conglomerate thâu tóm các xí nghiệp dựa trên cơ sở nào?",
+  options: [
+    "Các lĩnh vực kinh doanh hoàn toàn khác nhau, không liên quan về kỹ thuật",
+    "Chỉ những xí nghiệp cùng ngành và có liên kết kỹ thuật chặt chẽ",
+    "Chỉ những xí nghiệp nằm trong cùng một quốc gia",
+    "Chỉ những xí nghiệp nhà nước đã cổ phần hóa",
+  ],
+  correctIndex: 0,
+};
+
+const Q_TNC: QuizQuestion = {
+  question: "Hiện nay, chủ thể chính thực hiện đầu tư trực tiếp (FDI) toàn cầu là ai?",
+  options: [
+    "Các công ty xuyên quốc gia (TNCs)",
+    "Các tổ chức phi chính phủ (NGO)",
+    "Chính phủ các nước đang phát triển",
+    "Các hộ gia đình cá thể ở nước phát triển",
+  ],
+  correctIndex: 0,
+};
+
+const Q_XN_LON: QuizQuestion = {
+  question: "Khoa học - kỹ thuật phát triển cuối thế kỷ XIX đã thúc đẩy hình thành loại hình xí nghiệp nào?",
+  options: [
+    "Các xí nghiệp có quy mô lớn",
+    "Các xưởng thủ công quy mô hộ gia đình",
+    "Các hợp tác xã nông nghiệp nhỏ lẻ",
+    "Các cửa hàng bán lẻ độc lập",
+  ],
+  correctIndex: 0,
+};
+
+const Q_XKTB_GIAI_DOAN: QuizQuestion = {
+  question: "Xuất khẩu tư bản là đặc điểm của giai đoạn nào trong chủ nghĩa tư bản?",
+  options: [
+    "Giai đoạn chủ nghĩa tư bản độc quyền",
+    "Giai đoạn chủ nghĩa tư bản tự do cạnh tranh",
+    "Giai đoạn phong kiến chuyển sang tư bản",
+    "Giai đoạn kinh tế kế hoạch hóa tập trung",
+  ],
+  correctIndex: 0,
+};
+
+const Q_DINH_NGHIA_DQ: QuizQuestion = {
+  question: "Độc quyền là sự liên minh giữa các doanh nghiệp lớn nhằm mục đích gì?",
+  options: [
+    "Thâu tóm sản xuất/tiêu thụ, định giá độc quyền và thu lợi nhuận độc quyền cao",
+    "Giảm giá bán để cạnh tranh công bằng với doanh nghiệp nhỏ",
+    "Chia sẻ công nghệ miễn phí cho toàn ngành",
+    "Tăng số lượng đối thủ cạnh tranh trên thị trường",
+  ],
+  correctIndex: 0,
+};
+
+const Q_KET_HOP_NHAN_SU: QuizQuestion = {
+  question: "Sự kết hợp nhân sự giữa tư bản tài chính và nhà nước được thực hiện thông qua đâu?",
+  options: [
+    "Các hội chủ xí nghiệp, liên đoàn công nghiệp tham gia vào bộ máy chính quyền",
+    "Các cuộc bầu cử trực tiếp do công nhân tổ chức",
+    "Hiến pháp quy định cấm doanh nhân tham gia chính trị",
+    "Tòa án quốc tế phân xử tranh chấp thương mại",
+  ],
+  correctIndex: 0,
+};
+
+const Q_XKTB_KET_HOP: QuizQuestion = {
+  question: "Hình thức xuất khẩu tư bản hiện đại thường kết hợp với việc gì?",
+  options: [
+    "Kết hợp giữa xuất khẩu hàng hóa và xuất khẩu tư bản",
+    "Chỉ xuất khẩu hàng hóa, không xuất khẩu vốn",
+    "Chỉ chuyển giao lao động, không chuyển giao vốn hay hàng hóa",
+    "Hoàn toàn tách biệt khỏi hoạt động thương mại quốc tế",
+  ],
+  correctIndex: 0,
+};
+
+const Q_DQNN_MUC_DICH: QuizQuestion = {
+  question: "Độc quyền nhà nước hình thành nhằm tạo ra sức mạnh vật chất cho việc gì?",
+  options: [
+    "Sự ổn định của chế độ chính trị xã hội ứng với điều kiện lịch sử nhất định",
+    "Xóa bỏ hoàn toàn vai trò của các tập đoàn tư nhân",
+    "Tăng cường cạnh tranh tự do không giới hạn",
+    "Giải thể toàn bộ hệ thống ngân hàng trung ương",
+  ],
+  correctIndex: 0,
+};
+
+const Q_BIEN_GIOI_MEM: QuizQuestion = {
+  question: "Chiến lược 'Biên giới mềm' nhằm mục đích bành trướng lĩnh vực nào?",
+  options: [
+    "Bành trướng biên giới kinh tế và ảnh hưởng chính trị",
+    "Mở rộng lãnh thổ quân sự bằng vũ lực trực tiếp",
+    "Chỉ nhằm quảng bá văn hóa, không liên quan kinh tế",
+    "Chỉ áp dụng trong nội bộ một quốc gia, không ra nước ngoài",
+  ],
+  correctIndex: 0,
+};
+
+const Q_CARTEL: QuizQuestion = {
+  question: "Tại sao Cartel được coi là liên minh không vững chắc?",
+  options: [
+    "Vì các thành viên vẫn độc lập về cả sản xuất và lưu thông, dễ vi phạm thỏa thuận",
+    "Vì Cartel bị pháp luật cấm hoàn toàn ở mọi quốc gia",
+    "Vì Cartel chỉ tồn tại trong một ngày rồi giải thể",
+    "Vì các thành viên bị sáp nhập thành một công ty duy nhất ngay từ đầu",
+  ],
+  correctIndex: 0,
+};
+
+const Q_SYNDICATE: QuizQuestion = {
+  question: "Mục đích của Syndicate khi thống nhất đầu mối mua bán là gì?",
+  options: [
+    "Bán hàng hóa với giá đắt và mua nguyên liệu với giá rẻ",
+    "Bán hàng hóa dưới giá thành để chiếm thị phần",
+    "Loại bỏ hoàn toàn khâu mua bán trung gian",
+    "Trao quyền định giá cho từng thành viên độc lập",
+  ],
+  correctIndex: 0,
+};
+
+const Q_TRUST: QuizQuestion = {
+  question: "Hình thức độc quyền nào đánh dấu bước ngoặt về sự vận động của quan hệ sản xuất tư bản chủ nghĩa?",
+  options: ["Trust (Tơ-rớt)", "Cartel", "Syndicate", "Concern"],
+  correctIndex: 0,
+};
+
+const Q_XKTB_MUC_DICH: QuizQuestion = {
+  question: "Mục đích cuối cùng của việc xuất khẩu tư bản ra nước ngoài là gì?",
+  options: [
+    "Chiếm đoạt giá trị thặng dư tại nước nhập khẩu tư bản",
+    "Giúp đỡ nước nhập khẩu phát triển kinh tế không vụ lợi",
+    "Chuyển giao toàn bộ công nghệ miễn phí",
+    "Tăng viện trợ nhân đạo không hoàn lại",
+  ],
+  correctIndex: 0,
+};
+
+const Q_XKTB_BIEU_HIEN_MOI: QuizQuestion = {
+  question: "Ngày nay, các nước tư bản phát triển thường xuất khẩu tư bản sang đâu là chủ yếu?",
+  options: [
+    "Xuất khẩu lẫn nhau giữa các nước tư bản phát triển",
+    "Chỉ xuất khẩu sang các nước nghèo nhất thế giới",
+    "Chỉ xuất khẩu trong nội bộ một quốc gia",
+    "Ngừng hoàn toàn hoạt động xuất khẩu tư bản",
+  ],
+  correctIndex: 0,
+};
+
+const Q_CONG_CU_THUE: QuizQuestion = {
+  question: "Nhà nước sử dụng công cụ Thuế để làm gì trong nền kinh tế độc quyền?",
+  options: [
+    "Điều tiết quá trình tái sản xuất xã hội theo hướng có lợi cho tư bản độc quyền",
+    "Xóa bỏ hoàn toàn vai trò của thuế trong nền kinh tế",
+    "Chỉ dùng để trả lương công chức, không điều tiết kinh tế",
+    "Chuyển giao toàn quyền thu thuế cho tập đoàn tư nhân",
+  ],
+  correctIndex: 0,
+};
+
+const Q_SO_HUU_NN: QuizQuestion = {
+  question: "Sở hữu độc quyền nhà nước là sở hữu tập thể của giai cấp nào?",
+  options: [
+    "Giai cấp tư bản độc quyền",
+    "Giai cấp nông dân",
+    "Toàn thể nhân dân lao động không phân biệt giai cấp",
+    "Giai cấp tiểu tư sản thành thị",
+  ],
+  correctIndex: 0,
+};
+
+const Q_TAC_DONG_TICH_CUC: QuizQuestion = {
+  question: "Độc quyền góp phần chuyển nền sản xuất nhỏ thành nền sản xuất như thế nào?",
+  options: [
+    "Nền sản xuất hiện đại",
+    "Nền sản xuất thủ công truyền thống",
+    "Nền sản xuất tự cung tự cấp",
+    "Nền sản xuất phi tập trung hoàn toàn",
+  ],
+  correctIndex: 0,
+};
+
+const Q_TAC_DONG_TIEU_CUC: QuizQuestion = {
+  question: "Độc quyền có thể gây ra hệ quả gì đối với sự phân hóa xã hội?",
+  options: [
+    "Làm gia tăng sự phân hóa giàu nghèo sâu sắc",
+    "Xóa bỏ hoàn toàn khoảng cách giàu nghèo",
+    "Không có tác động gì đến cơ cấu xã hội",
+    "Làm giảm chênh lệch thu nhập giữa các tầng lớp",
+  ],
+  correctIndex: 0,
+};
 
 // ============================================
 // BÀN CỜ 40 Ô — bám sát Chương 4 Mác-Lênin
@@ -13,14 +244,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 1 — IMF: ô tư bản tài chính điển hình nhất của Lenin
   {
     id: 1, name: "🏦 IMF", type: "financial_capital",
-    description: "Quỹ Tiền tệ Quốc tế — cho vay kèm điều kiện khắt khe về cải cách kinh tế",
-    effect: { money: -80, autonomy: -15 }
+    description: "Quỹ Tiền tệ Quốc tế — trả lời đúng để thâu tóm, hoặc trả phí thuê nếu đã có chủ",
+    effect: {},
+    ownable: true, price: 480, rent: 80, quiz: Q_IMF,
   },
   // 2
   {
     id: 2, name: "📈 Thị trường Chứng khoán NYSE", type: "financial_capital",
-    description: "Tư bản tài chính chi phối qua hệ thống cổ phần và chứng khoán quốc tế",
-    effect: { money: -60, softPower: -10 }
+    description: "Tư bản tài chính chi phối qua hệ thống cổ phần — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 360, rent: 60, quiz: Q_NYSE,
   },
   // 3 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (điều tiết nhà nước — Lenin: công cụ thuế, ngân sách)
   {
@@ -31,8 +264,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 4
   {
     id: 4, name: "🏢 Samsung Conglomerate", type: "conglomerate",
-    description: "Tập đoàn đa ngành kiểm soát thị trường — biểu hiện của tập trung tư bản",
-    effect: { money: -70, autonomy: -10 }
+    description: "Tập đoàn đa ngành kiểm soát thị trường — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 420, rent: 70, quiz: Q_CONCERN,
   },
   // 5 — Oil Consortium: biểu quyết về chủ quyền tài nguyên (Lenin: liên minh tư bản ngân hàng+công nghiệp)
   {
@@ -50,14 +284,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 6
   {
     id: 6, name: "💻 Google (Big Tech)", type: "conglomerate",
-    description: "Xuất khẩu tư bản qua dữ liệu và nền tảng số — biên giới mềm kỹ thuật số",
-    effect: { money: -90, softPower: -15, autonomy: -5 }
+    description: "Xuất khẩu tư bản qua dữ liệu và nền tảng số — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 540, rent: 90, quiz: Q_CONGLOMERATE,
   },
   // 7
   {
     id: 7, name: "🏭 Foxconn TNC", type: "tnc",
-    description: "Chuỗi cung ứng xuyên quốc gia — khai thác lao động và chiếm đoạt giá trị thặng dư",
-    effect: { money: -50, autonomy: -20 }
+    description: "Chuỗi cung ứng xuyên quốc gia — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 300, rent: 50, quiz: Q_TNC,
   },
   // 8 — Ô Việt Nam: rút thẻ Toàn cầu hóa (FDI = tận dụng mặt tích cực của độc quyền)
   {
@@ -68,8 +304,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 9
   {
     id: 9, name: "💳 Fintech Platform", type: "financial_capital",
-    description: "Nền tảng tài chính công nghệ tạo kênh luân chuyển vốn mới, vượt kiểm soát nhà nước",
-    effect: { money: -40, softPower: -20 }
+    description: "Nền tảng tài chính công nghệ tạo kênh luân chuyển vốn mới — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 240, rent: 40, quiz: Q_XN_LON,
   },
   // 10
   {
@@ -80,14 +317,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 11
   {
     id: 11, name: "🌍 World Bank", type: "financial_capital",
-    description: "Ngân hàng Thế giới — vốn kèm điều kiện 'cải cách cơ cấu' áp đặt mô hình kinh tế",
-    effect: { money: -100, autonomy: -20 }
+    description: "Ngân hàng Thế giới — vốn kèm điều kiện 'cải cách cơ cấu' — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 600, rent: 100, quiz: Q_XKTB_GIAI_DOAN,
   },
   // 12
   {
     id: 12, name: "📦 Amazon Supply Chain", type: "tnc",
-    description: "Mạng lưới lưu thông toàn cầu — kiểm soát cả sản xuất lẫn phân phối",
-    effect: { money: -80, autonomy: -10 }
+    description: "Mạng lưới lưu thông toàn cầu — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 480, rent: 80, quiz: Q_DINH_NGHIA_DQ,
   },
   // 13 — Tech Alliance: biểu quyết về tiêu chuẩn công nghệ (Lenin: biên giới mềm công nghệ)
   {
@@ -117,8 +356,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 16
   {
     id: 16, name: "🏦 JP Morgan", type: "financial_capital",
-    description: "Ngân hàng độc quyền lớn nhất — không còn là trung gian mà là 'chủ nhân' của nền kinh tế",
-    effect: { money: -120, autonomy: -15 }
+    description: "Ngân hàng độc quyền lớn nhất — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 720, rent: 120, quiz: Q_KET_HOP_NHAN_SU,
   },
   // 17 — Banking Syndicate: biểu quyết về tự chủ tiền tệ (Lenin: syndicate = thỏa thuận giá cả)
   {
@@ -136,8 +376,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 18
   {
     id: 18, name: "📱 Apple Supply Chain", type: "tnc",
-    description: "Chuỗi giá trị toàn cầu — thiết kế ở Mỹ, sản xuất ở châu Á, chiếm đoạt giá trị thặng dư từ xa",
-    effect: { money: -70, softPower: -10 }
+    description: "Chuỗi giá trị toàn cầu — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 420, rent: 70, quiz: Q_XKTB_KET_HOP,
   },
   // 19 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (cảnh giác biên giới mềm)
   {
@@ -161,14 +402,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 21
   {
     id: 21, name: "💰 BlackRock Investment Fund", type: "financial_capital",
-    description: "Quỹ đầu tư lớn nhất thế giới quản lý tài sản vượt GDP nhiều quốc gia — chi phối qua cổ phần",
-    effect: { money: -110, softPower: -20 }
+    description: "Quỹ đầu tư lớn nhất thế giới — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 660, rent: 110, quiz: Q_DQNN_MUC_DICH,
   },
   // 22
   {
     id: 22, name: "🏗️ BRI Infrastructure (Biên giới mềm)", type: "tnc",
-    description: "Đầu tư hạ tầng núp bóng — bành trướng biên giới kinh tế, bẫy nợ và mất chủ quyền tài sản",
-    effect: { money: -60, autonomy: -30, softPower: -10 }
+    description: "Đầu tư hạ tầng núp bóng, bẫy nợ — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 360, rent: 60, rentAutonomy: -8, quiz: Q_BIEN_GIOI_MEM,
   },
   // 23 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (xây dựng nội lực)
   {
@@ -179,14 +422,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 24
   {
     id: 24, name: "🚗 Toyota TNC", type: "tnc",
-    description: "Sản xuất xuyên quốc gia — nước đang phát triển phụ thuộc vào chuỗi cung ứng do TNC kiểm soát",
-    effect: { money: -65, autonomy: -15 }
+    description: "Sản xuất xuyên quốc gia — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 390, rent: 65, quiz: Q_CARTEL,
   },
   // 25
   {
     id: 25, name: "💳 Visa/Mastercard Fintech", type: "financial_capital",
-    description: "Hạ tầng thanh toán toàn cầu — ai kiểm soát hạ tầng thanh toán kiểm soát dòng chảy tiền tệ",
-    effect: { money: -55, softPower: -25 }
+    description: "Hạ tầng thanh toán toàn cầu — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 330, rent: 55, quiz: Q_SYNDICATE,
   },
   // 26 — WTO: biểu quyết về mở cửa thị trường (Lenin: thể chế phản ánh lợi ích nước phát triển)
   {
@@ -210,14 +455,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 28
   {
     id: 28, name: "🔬 Intel TNC (Bán dẫn)", type: "tnc",
-    description: "Công nghệ cao — mặt tích cực của độc quyền: thúc đẩy R&D và cơ hội chuyển đổi cơ cấu kinh tế",
-    effect: { money: -50, autonomy: -5, softPower: 10 }
+    description: "Công nghệ cao — mặt tích cực của độc quyền — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 300, rent: 50, quiz: Q_TAC_DONG_TICH_CUC,
   },
   // 29
   {
     id: 29, name: "📊 Goldman Sachs", type: "financial_capital",
-    description: "Tư bản tài chính Phố Wall thống trị thị trường vốn — liên minh nhân sự với bộ máy nhà nước nhiều nước",
-    effect: { money: -130, autonomy: -20 }
+    description: "Tư bản tài chính Phố Wall thống trị thị trường vốn — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 780, rent: 130, quiz: Q_XKTB_BIEU_HIEN_MOI,
   },
   // 30 — Vào Tù: bị chi phối hoàn toàn = mất 2 lượt (Lenin: chi phối kinh tế → chi phối chính trị)
   {
@@ -228,8 +475,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 31
   {
     id: 31, name: "🧩 Tencent Conglomerate", type: "conglomerate",
-    description: "Tập đoàn số đa ngành — thâu tóm dữ liệu và nền tảng, chiếm đoạt tài nguyên số",
-    effect: { money: -85, softPower: -20 }
+    description: "Tập đoàn số đa ngành — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 510, rent: 85, quiz: Q_TAC_DONG_TIEU_CUC,
   },
   // 32 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (fintech nội địa = tự chủ tài chính số)
   {
@@ -240,8 +488,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 33
   {
     id: 33, name: "✈️ Nike Manufacturing TNC", type: "tnc",
-    description: "Thiết kế ở Mỹ, sản xuất ở Việt Nam — khai thác lao động giá rẻ và chiếm đoạt giá trị thặng dư",
-    effect: { money: -60, autonomy: -15 }
+    description: "Thiết kế ở Mỹ, sản xuất ở Việt Nam — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 360, rent: 60, quiz: Q_XKTB_MUC_DICH,
   },
   // 34
   {
@@ -252,8 +501,9 @@ export const BOARD_CELLS: BoardCell[] = [
   // 35
   {
     id: 35, name: "🏛️ ADB (Ngân hàng Phát triển Châu Á)", type: "financial_capital",
-    description: "Vốn phát triển kèm điều kiện cải cách cơ cấu — phản ánh lợi ích địa chính trị của nước cho vay",
-    effect: { money: -70, autonomy: -10 }
+    description: "Vốn phát triển kèm điều kiện cải cách cơ cấu — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 420, rent: 70, quiz: Q_CONG_CU_THUE,
   },
   // 36 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (tiền tệ và tín dụng = đòn bẩy chỉ huy của nhà nước)
   {
@@ -264,14 +514,16 @@ export const BOARD_CELLS: BoardCell[] = [
   // 37
   {
     id: 37, name: "🔋 TSMC TNC (Chip)", type: "tnc",
-    description: "Ai kiểm soát chip kiểm soát nền kinh tế số — độc quyền công nghệ cao nhất trong kỷ nguyên số",
-    effect: { money: -90, softPower: -15 }
+    description: "Ai kiểm soát chip kiểm soát nền kinh tế số — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 540, rent: 90, quiz: Q_SO_HUU_NN,
   },
   // 38
   {
     id: 38, name: "💼 Financial Trust (Tập đoàn Tài chính)", type: "conglomerate",
-    description: "Trust tài chính thống nhất cả sản xuất lẫn lưu thông — hình thức độc quyền cao nhất theo Lenin",
-    effect: { money: -100, autonomy: -20, softPower: -10 }
+    description: "Trust tài chính thống nhất cả sản xuất lẫn lưu thông — trả lời đúng để thâu tóm",
+    effect: {},
+    ownable: true, price: 600, rent: 100, rentAutonomy: -10, quiz: Q_TRUST,
   },
   // 39
   {

@@ -2,11 +2,13 @@ import { v4 as uuidv4 } from "uuid";
 import {
   GameRoom, Player, PlayerRole,
   EventCard, CellEffect, CellType, BoardCell,
+  QuizSession, QuizResult,
 } from "../types/game";
 import { BOARD_CELLS, EVENT_CARDS } from "../data/boardData";
 
 const BOARD_SIZE   = 40;
 const PASS_GO_BONUS = 200;
+const QUIZ_TIME_MS  = 15000; // thời gian trả lời mỗi câu hỏi thâu tóm
 
 // ============================================
 // ĐIỀU KIỆN XUẤT PHÁT THEO VAI — Chương 4 Mác-Lênin
@@ -27,6 +29,10 @@ const ROLE_START_STATS: Record<PlayerRole, { money: number; autonomy: number; so
 // ============================================
 export class GameEngine {
   private rooms: Map<string, GameRoom> = new Map();
+  // roomCode → đáp án đúng ĐÃ TRỘN cho phiên quiz đang mở (không gửi cho client).
+  // Dữ liệu gốc trong boardData.ts luôn đặt đáp án đúng ở vị trí A (index 0),
+  // nên phải xáo vị trí mỗi lần mở câu hỏi để không lộ đáp án.
+  private quizCorrectIndex: Map<string, number> = new Map();
 
   // ---------- TẠO PHÒNG ----------
   createRoom(playerName: string, role: PlayerRole, socketId: string): GameRoom {
@@ -43,6 +49,8 @@ export class GameEngine {
       hasRolled: false,
       lastEvent: null,
       voteSession: null,
+      quizSession: null,
+      cellOwners: {},
       log: [`🎮 Phòng ${roomCode} được tạo. ${playerName} tham gia với vai ${this.roleLabel(role)}.`],
     };
     this.rooms.set(roomCode, room);
@@ -92,6 +100,7 @@ export class GameEngine {
     diceValue: number;
     drawnCard?: EventCard;
     triggerVote?: boolean;
+    triggerQuiz?: boolean;
   } | null {
     const room = this.rooms.get(roomCode);
     if (!room || room.phase !== "playing") return null;
@@ -132,8 +141,22 @@ export class GameEngine {
 
     let drawnCard: EventCard | undefined;
     let triggerVote = false;
+    let triggerQuiz = false;
 
-    if (cell.effect.drawCard) {
+    if (cell.ownable) {
+      // ── Ô sở hữu được (financial_capital / conglomerate / tnc) ────────────
+      // Chưa có chủ → mở quiz để "thâu tóm". Đã có chủ khác → trả phí thuê (rent),
+      // mô phỏng việc chiếm đoạt giá trị thặng dư qua xuất khẩu tư bản.
+      const ownerId = room.cellOwners[cell.id];
+      if (!ownerId) {
+        triggerQuiz = true;
+        this.startQuiz(room, player, cell);
+      } else if (ownerId === player.id) {
+        room.log.push(`🏠 ${player.name} đang đứng trên tài sản của chính mình tại [${cell.name}] — miễn phí.`);
+      } else {
+        this.payRent(room, player, cell, ownerId);
+      }
+    } else if (cell.effect.drawCard) {
       // ── Rút thẻ có phân loại (drawCardType) hoặc ngẫu nhiên ────────────────
       drawnCard = this.drawCard(room, player, cell.effect.drawCardType);
     } else if (cell.effect.councilVote) {
@@ -161,7 +184,114 @@ export class GameEngine {
     this.clampStats(player);
     this.checkGameEnd(room);
 
-    return { room, diceValue, drawnCard, triggerVote };
+    return { room, diceValue, drawnCard, triggerVote, triggerQuiz };
+  }
+
+  // ---------- TRẢ LỜI QUIZ (mua ô / thâu tóm) ----------
+  answerQuiz(roomCode: string, socketId: string, optionIndex: number): { room: GameRoom; result: QuizResult } | null {
+    const room = this.rooms.get(roomCode);
+    if (!room || room.phase !== "quiz" || !room.quizSession) return null;
+
+    const session = room.quizSession;
+    const player = room.players.find(p => p.id === session.playerId);
+    if (!player || player.socketId !== socketId) return null;
+
+    const cell = BOARD_CELLS.find(c => c.id === session.cellId);
+    if (!cell || !cell.quiz) return null;
+
+    const correctIndex = this.quizCorrectIndex.get(roomCode) ?? cell.quiz.correctIndex;
+    const correct = optionIndex === correctIndex;
+    let purchased = false;
+
+    if (correct) {
+      const price = cell.price ?? 0;
+      if (player.money >= price) {
+        player.money -= price;
+        room.cellOwners[cell.id] = player.id;
+        player.ownedCells.push(cell.id);
+        purchased = true;
+        room.log.push(`✅ ${player.name} trả lời đúng và THÂU TÓM [${cell.name}] với giá $${price}!`);
+      } else {
+        player.autonomy += 5;
+        room.log.push(`✅ ${player.name} trả lời đúng nhưng không đủ vốn để mua [${cell.name}] — vẫn ghi nhận hiểu biết (+5 Tự chủ).`);
+      }
+    } else {
+      const penalty = 30;
+      player.money = Math.max(0, player.money - penalty);
+      player.autonomy -= 10;
+      room.log.push(`❌ ${player.name} trả lời sai câu hỏi tại [${cell.name}] — mất $${penalty} chi phí cơ hội và -10 Tự chủ.`);
+    }
+
+    this.clampStats(player);
+
+    const result: QuizResult = {
+      correct,
+      correctIndex,
+      cellId: cell.id,
+      cellName: cell.name,
+      playerId: player.id,
+      purchased,
+    };
+
+    this.quizCorrectIndex.delete(roomCode);
+    room.quizSession = null;
+    room.phase = "playing";
+    this.checkGameEnd(room);
+
+    return { room, result };
+  }
+
+  // ---------- BẮT ĐẦU ĐẾM 15s — chỉ khi client thật sự đã hiển thị câu hỏi ----------
+  // (sau khi người chơi đã đóng modal thông tin ô / đọc xong giải thích, không tính thời gian đó)
+  startQuizClock(roomCode: string, socketId: string): QuizSession | null {
+    const room = this.rooms.get(roomCode);
+    if (!room || room.phase !== "quiz" || !room.quizSession) return null;
+
+    const session = room.quizSession;
+    const player = room.players.find(p => p.id === session.playerId);
+    if (!player || player.socketId !== socketId) return null; // chỉ người phải trả lời mới bắt đầu được đồng hồ
+
+    session.expiresAt = Date.now() + QUIZ_TIME_MS;
+    return session;
+  }
+
+  // ---------- HẾT GIỜ TRẢ LỜI QUIZ (15s) — server tự xử lý như trả lời sai ----------
+  timeoutQuiz(roomCode: string, cellId: number, playerId: string): { room: GameRoom; result: QuizResult } | null {
+    const room = this.rooms.get(roomCode);
+    if (!room || room.phase !== "quiz" || !room.quizSession) return null;
+
+    const session = room.quizSession;
+    // Đảm bảo đây vẫn là đúng phiên quiz đã hẹn giờ (tránh đụng độ nếu đã có quiz mới)
+    if (session.cellId !== cellId || session.playerId !== playerId) return null;
+
+    const player = room.players.find(p => p.id === session.playerId);
+    const cell = BOARD_CELLS.find(c => c.id === session.cellId);
+    if (!player || !cell || !cell.quiz) return null;
+
+    const correctIndex = this.quizCorrectIndex.get(roomCode) ?? cell.quiz.correctIndex;
+
+    const penalty = 30;
+    player.money = Math.max(0, player.money - penalty);
+    player.autonomy -= 10;
+    room.log.push(`⏰ ${player.name} hết thời gian trả lời tại [${cell.name}] — mất $${penalty} chi phí cơ hội và -10 Tự chủ.`);
+
+    this.clampStats(player);
+
+    const result: QuizResult = {
+      correct: false,
+      correctIndex,
+      cellId: cell.id,
+      cellName: cell.name,
+      playerId: player.id,
+      purchased: false,
+    };
+
+    this.quizCorrectIndex.delete(roomCode);
+    room.quizSession = null;
+    room.phase = "playing";
+    this.checkGameEnd(room);
+
+    return { room, result };
   }
 
   // ---------- BIỂU QUYẾT ----------
@@ -306,6 +436,7 @@ export class GameEngine {
       isActive: true,
       hasLeft:  false,
       socketId,
+      ownedCells: [],
     };
   }
 
@@ -316,6 +447,85 @@ export class GameEngine {
       if (!room.players[idx].hasLeft) return idx;
     }
     return fromIndex;
+  }
+
+  // ── Xáo thứ tự đáp án — dữ liệu gốc luôn để đáp án đúng ở vị trí A ──────────
+  private shuffleQuizOptions(options: string[], correctIndex: number): { options: string[]; correctIndex: number } {
+    const order = options.map((_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return {
+      options: order.map(i => options[i]),
+      correctIndex: order.indexOf(correctIndex),
+    };
+  }
+
+  // ── Mở quiz để "thâu tóm" ô sở hữu được ────────────────────────────────────
+  private startQuiz(room: GameRoom, player: Player, cell: BoardCell): void {
+    if (!cell.quiz) return;
+    room.phase = "quiz";
+
+    const shuffled = this.shuffleQuizOptions(cell.quiz.options, cell.quiz.correctIndex);
+    this.quizCorrectIndex.set(room.roomCode, shuffled.correctIndex);
+
+    room.quizSession = {
+      cellId: cell.id,
+      cellName: cell.name,
+      playerId: player.id,
+      question: cell.quiz.question,
+      options: shuffled.options,
+      price: cell.price ?? 0,
+      expiresAt: Date.now() + QUIZ_TIME_MS,
+    };
+    room.log.push(`❓ ${player.name} gặp câu hỏi thâu tóm tại [${cell.name}] — trả lời đúng để mua ô này.`);
+  }
+
+  // ── Hệ số phí thuê theo vai ───────────────────────────────────────────────
+  // Dựa theo lý luận Lênin: ai chịu tác động nặng nhất khi trả giá trị thặng dư
+  // cho chủ sở hữu tư bản độc quyền?
+  //   - developing_country: chịu đầy đủ 100% (đối tượng bị bóc lột trực tiếp)
+  //   - vietnam: nhà nước điều tiết → giảm 40% (còn 60%)
+  //   - financial_capital: có kênh vốn thay thế/đàm phán → giảm 50% (còn 50%)
+  private rentMultiplier(role: PlayerRole): number {
+    if (role === "developing_country") return 1.0;
+    if (role === "vietnam") return 0.6;
+    return 0.5;
+  }
+
+  // ── Trả phí thuê (rent) cho chủ sở hữu ô ────────────────────────────────────
+  // Mô phỏng việc chiếm đoạt giá trị thặng dư qua xuất khẩu tư bản: chủ sở hữu
+  // (người đã thâu tóm ô) thu lợi từ người khác dẫm vào lãnh địa của mình.
+  private payRent(room: GameRoom, payer: Player, cell: BoardCell, ownerId: string): void {
+    const owner = room.players.find(p => p.id === ownerId);
+    if (!owner || owner.hasLeft) return;
+
+    const baseRent = cell.rent ?? 0;
+    const amount = Math.round(baseRent * this.rentMultiplier(payer.role));
+
+    payer.money -= amount;
+    owner.money += amount;
+    room.log.push(
+      `💸 ${payer.name} trả $${amount} phí thuê cho ${owner.name} tại [${cell.name}] ` +
+      `(chiếm đoạt giá trị thặng dư qua ô đã bị thâu tóm).`
+    );
+
+    if (cell.rentAutonomy) {
+      payer.autonomy += cell.rentAutonomy;
+      room.log.push(`🏛️ ${payer.name}: ${cell.rentAutonomy} Tự chủ (xói mòn chủ quyền tại ${cell.name})`);
+    }
+
+    this.clampStats(payer);
+    this.clampStats(owner);
+  }
+
+  // ── Tổng giá trị tài sản (các ô đã thâu tóm) — dùng để tính điểm cuối game ──
+  private ownedAssetValue(player: Player): number {
+    return player.ownedCells.reduce((sum, id) => {
+      const cell = BOARD_CELLS.find(c => c.id === id);
+      return sum + (cell?.price ?? 0);
+    }, 0);
   }
 
   // ── Rút thẻ ──────────────────────────────────────────────────────────────────
@@ -519,7 +729,7 @@ export class GameEngine {
     const scores = room.players.map(p => ({
       name:  p.name,
       role:  p.role,
-      score: p.money + p.autonomy * 10 + p.softPower * 5,
+      score: p.money + this.ownedAssetValue(p) + p.autonomy * 10 + p.softPower * 5,
     })).sort((a, b) => b.score - a.score);
 
     const winner = scores[0];
