@@ -33,9 +33,17 @@ NODE_ENV=development
 FRONTEND_URL=http://localhost:3000
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_xxxxx
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxxxx
+ADMIN_PASSWORD=doi-mat-khau-nay
+ADMIN_SESSION_SECRET=doi-chuoi-bi-mat-ngau-nhien-nay
 ```
 
-### 3. Chạy dev
+### 3. Tạo bảng database (1 lần)
+
+Mở Supabase Dashboard → SQL Editor → chạy nội dung file [`sql/001_admin_schema.sql`](sql/001_admin_schema.sql).
+Tạo bảng `game_rooms` / `room_players` dùng cho admin panel (quản lý phòng, xếp hạng, người thắng, phát thưởng).
+
+### 4. Chạy dev
 
 ```bash
 npm run dev
@@ -63,6 +71,9 @@ NODE_ENV=production
 FRONTEND_URL=https://<your-web>.vercel.app
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+ADMIN_PASSWORD=...
+ADMIN_SESSION_SECRET=...
 ```
 
 ## Cấu trúc
@@ -73,5 +84,6 @@ src/
 ├── types/            ← TypeScript interfaces
 ├── game/             ← game logic handlers
 ├── data/             ← dữ liệu ô bàn cờ, thẻ sự kiện
-└── db/               ← Supabase client
+├── db/               ← Supabase client (persist phòng/người chơi/kết quả)
+└── admin/            ← auth + REST API cho admin panel (xem web-FE/src/app/admin)
 ```

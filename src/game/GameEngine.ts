@@ -720,17 +720,26 @@ export class GameEngine {
     player.softPower = Math.max(0, Math.min(100, player.softPower));
   }
 
+  // ── Xếp hạng cuối ván — dùng chung bởi checkGameEnd và bởi index.ts khi cần
+  // persist kết quả (leaveRoom cũng có thể khiến phase chuyển "finished") ──────
+  computeFinalRanking(room: GameRoom): { name: string; role: PlayerRole; money: number; autonomy: number; softPower: number; score: number }[] {
+    return room.players.map(p => ({
+      name:      p.name,
+      role:      p.role,
+      money:     p.money,
+      autonomy:  p.autonomy,
+      softPower: p.softPower,
+      score:     p.money + this.ownedAssetValue(p) + p.autonomy * 10 + p.softPower * 5,
+    })).sort((a, b) => b.score - a.score);
+  }
+
   private checkGameEnd(room: GameRoom): void {
     // Theo Lenin: mất tự chủ kinh tế hoàn toàn = bị chi phối hoàn toàn về chính trị → thua
     const dominated = room.players.filter(p => p.autonomy <= 0 && !p.hasLeft);
     if (dominated.length === 0) return;
 
     room.phase = "finished";
-    const scores = room.players.map(p => ({
-      name:  p.name,
-      role:  p.role,
-      score: p.money + this.ownedAssetValue(p) + p.autonomy * 10 + p.softPower * 5,
-    })).sort((a, b) => b.score - a.score);
+    const scores = this.computeFinalRanking(room);
 
     const winner = scores[0];
     room.log.push(`🏁 Trò chơi kết thúc! 🥇 ${winner.name} thắng với ${winner.score} điểm.`);

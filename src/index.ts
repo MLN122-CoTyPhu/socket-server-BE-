@@ -2,27 +2,34 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import {
   ServerToClientEvents,
   ClientToServerEvents,
+  GameRoom,
+  QuizResult,
 } from "./types/game";
 import { GameEngine } from "./game/GameEngine";
+import { db } from "./db/supabase";
+import { createAdminRouter } from "./admin/routes";
 
-dotenv.config();
+// Project dùng .env.local (README: `cp env.example .env.local`) thay vì .env mặc định của dotenv
+dotenv.config({ path: ".env.local" });
 
 const app = express();
 const httpServer = createServer(app);
 
-// CORS — cho phép Vercel frontend gọi vào
+// CORS — cho phép Vercel frontend gọi vào (credentials: true để cookie admin hoạt động)
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://10.10.99.160:3000",
   process.env.FRONTEND_URL || "https://co-ty-phu.vercel.app",
 ];
 
-app.use(cors({ origin: ALLOWED_ORIGINS }));
+app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 // Health check endpoint (Railway dùng để ping)
 app.get("/health", (_, res) => res.json({ status: "ok", timestamp: new Date() }));
@@ -39,8 +46,31 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 
 const engine = new GameEngine();
 
+app.use("/admin", createAdminRouter(engine));
+
 // Map socketId → roomCode (để xử lý disconnect nhanh)
 const socketRoomMap = new Map<string, string>();
+
+// Đảm bảo chỉ persist kết quả cuối ván 1 lần / phòng (nhiều handler có thể
+// khiến room.phase chuyển "finished": roll_dice, answer_quiz, timeout, leave_room...)
+const finishedPersisted = new Set<string>();
+
+// Kết quả quiz (đúng/sai + đáp án đúng) chỉ gửi riêng cho người đã trả lời —
+// broadcast cho cả phòng sẽ lộ đáp án cho những người chưa gặp câu hỏi đó.
+function emitQuizResultToAnswerer(room: GameRoom, result: QuizResult) {
+  const player = room.players.find(p => p.id === result.playerId);
+  if (player) io.to(player.socketId).emit("quiz_result", result);
+}
+
+function persistIfFinished(room: GameRoom): void {
+  if (room.phase !== "finished" || finishedPersisted.has(room.roomCode)) return;
+  finishedPersisted.add(room.roomCode);
+
+  const ranking = engine.computeFinalRanking(room);
+  db.finishRoom(room.id, ranking).catch(err =>
+    console.error(`❌ Lỗi lưu kết quả ván ${room.roomCode}:`, err)
+  );
+}
 
 // Map roomCode → timeout handle của câu hỏi thâu tóm đang chờ (15s hoặc lưới an toàn)
 const quizTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
@@ -66,6 +96,10 @@ io.on("connection", (socket) => {
       socketRoomMap.set(socket.id, room.roomCode);
       socket.emit("room_state", room);
       console.log(`🏠 Room created: ${room.roomCode} by ${playerName}`);
+
+      db.createRoom(room.id, room.roomCode, playerName)
+        .then(() => db.addPlayerRecord(room.id, playerName, role))
+        .catch(err => console.error(`❌ Lỗi lưu phòng ${room.roomCode}:`, err));
     } catch (err) {
       socket.emit("error", "Không thể tạo phòng.");
     }
@@ -86,6 +120,10 @@ io.on("connection", (socket) => {
       io.to(roomCode).emit("player_joined", room.players[room.players.length - 1]);
       io.to(roomCode).emit("game_update", room);
       console.log(`👤 ${playerName} joined room ${roomCode}`);
+
+      db.addPlayerRecord(room.id, playerName, role).catch(err =>
+        console.error(`❌ Lỗi lưu người chơi ${playerName} vào phòng ${roomCode}:`, err)
+      );
     } catch (err) {
       socket.emit("error", "Không thể vào phòng.");
     }
@@ -116,6 +154,10 @@ io.on("connection", (socket) => {
     }
     io.to(roomCode).emit("game_update", room);
     console.log(`🚀 Game started in room ${roomCode} by host`);
+
+    db.setRoomStatus(room.id, "playing").catch(err =>
+      console.error(`❌ Lỗi cập nhật trạng thái phòng ${roomCode}:`, err)
+    );
   });
 
   // ---------- TUNG XÚC XẮC ----------
@@ -140,9 +182,10 @@ io.on("connection", (socket) => {
     // Broadcast game state
     io.to(roomCode).emit("game_update", room);
 
-    // Nếu rút thẻ → broadcast thẻ
+    // Nếu rút thẻ → chỉ gửi riêng cho người rút (người khác không cần xem nội
+    // dung thẻ, chỉ cần chờ hết lượt — trạng thái tiền/tự chủ đã cập nhật qua game_update ở trên).
     if (drawnCard && currentPlayer) {
-      io.to(roomCode).emit("card_drawn", drawnCard, currentPlayer.id);
+      socket.emit("card_drawn", drawnCard, currentPlayer.id);
     }
 
     // Nếu vote → broadcast vote session
@@ -150,13 +193,14 @@ io.on("connection", (socket) => {
       io.to(roomCode).emit("vote_started", room.voteSession);
     }
 
-    // Nếu quiz → broadcast quiz session (không chứa đáp án đúng).
+    // Nếu quiz → chỉ gửi riêng cho người phải trả lời (không broadcast cả phòng —
+    // người khác không cần thấy câu hỏi, chỉ cần chờ hết lượt như bình thường).
     // Đồng hồ 15s CHƯA bắt đầu ở đây — client sẽ báo "quiz_ready" khi thật sự
     // hiển thị câu hỏi cho người chơi (sau khi đóng modal thông tin ô), lúc đó
     // đồng hồ mới chạy. Ở đây chỉ đặt một lưới an toàn 90s phòng khi client
     // không bao giờ gửi "quiz_ready" (mất kết nối, lỗi...), tránh treo ván.
     if (result.triggerQuiz && room.quizSession) {
-      io.to(roomCode).emit("quiz_started", room.quizSession);
+      socket.emit("quiz_started", room.quizSession);
 
       const { cellId, playerId } = room.quizSession;
       clearQuizTimeout(roomCode);
@@ -164,11 +208,14 @@ io.on("connection", (socket) => {
         quizTimeouts.delete(roomCode);
         const outcome = engine.timeoutQuiz(roomCode, cellId, playerId);
         if (!outcome) return;
-        io.to(roomCode).emit("quiz_result", outcome.result);
+        emitQuizResultToAnswerer(outcome.room, outcome.result);
         io.to(roomCode).emit("game_update", outcome.room);
+        persistIfFinished(outcome.room);
       }, QUIZ_SAFETY_NET_MS);
       quizTimeouts.set(roomCode, safetyHandle);
     }
+
+    persistIfFinished(room);
   });
 
   // ---------- SẴN SÀNG XEM CÂU HỎI — bắt đầu đếm 15s thật sự ----------
@@ -181,15 +228,16 @@ io.on("connection", (socket) => {
 
     // Hủy lưới an toàn cũ, bắt đầu đồng hồ 15s thật sự từ đây
     clearQuizTimeout(roomCode);
-    io.to(roomCode).emit("quiz_started", updatedSession);
+    socket.emit("quiz_started", updatedSession);
 
     const { cellId, playerId } = updatedSession;
     const handle = setTimeout(() => {
       quizTimeouts.delete(roomCode);
       const outcome = engine.timeoutQuiz(roomCode, cellId, playerId);
       if (!outcome) return;
-      io.to(roomCode).emit("quiz_result", outcome.result);
+      emitQuizResultToAnswerer(outcome.room, outcome.result);
       io.to(roomCode).emit("game_update", outcome.room);
+      persistIfFinished(outcome.room);
     }, 15000);
     quizTimeouts.set(roomCode, handle);
   });
@@ -205,8 +253,9 @@ io.on("connection", (socket) => {
     clearQuizTimeout(roomCode);
 
     const { room, result } = outcome;
-    io.to(roomCode).emit("quiz_result", result);
+    socket.emit("quiz_result", result);
     io.to(roomCode).emit("game_update", room);
+    persistIfFinished(room);
   });
 
   // ---------- BIỂU QUYẾT ----------
@@ -248,6 +297,10 @@ io.on("connection", (socket) => {
       io.to(roomCode).emit("player_left", result.player.id);
       io.to(roomCode).emit("game_update", result.room);
       console.log(`🚪 ${result.player.name} left room ${roomCode}`);
+      db.markPlayerLeft(result.room.id, result.player.name).catch(err =>
+        console.error(`❌ Lỗi cập nhật người chơi rời phòng ${roomCode}:`, err)
+      );
+      persistIfFinished(result.room);
     }
     // Xóa khỏi map trước khi disconnect để disconnect handler không xử lý 2 lần
     socketRoomMap.delete(socket.id);
@@ -262,6 +315,7 @@ io.on("connection", (socket) => {
       if (result) {
         io.to(roomCode).emit("player_left", result.player.id);
         io.to(roomCode).emit("game_update", result.room);
+        persistIfFinished(result.room);
       }
       socketRoomMap.delete(socket.id);
     }
