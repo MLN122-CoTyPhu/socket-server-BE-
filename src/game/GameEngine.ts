@@ -7,8 +7,8 @@ import {
 import { BOARD_CELLS, EVENT_CARDS } from "../data/boardData";
 
 const BOARD_SIZE   = 40;
-const PASS_GO_BONUS = 200;
 const QUIZ_TIME_MS  = 15000; // thời gian trả lời mỗi câu hỏi thâu tóm
+const MIN_SOFTPOWER_TO_BUY = 50; // Sức mạnh tối thiểu để thâu tóm ô sở hữu được (financial_capital / conglomerate / tnc)
 
 // ============================================
 // ĐIỀU KIỆN XUẤT PHÁT THEO VAI — Chương 4 Mác-Lênin
@@ -111,28 +111,21 @@ export class GameEngine {
 
     room.hasRolled = true;
 
-    // ── Xử lý lượt BỊ CHI PHỐI (ô 30 — "Vào Tù") ──────────────────────────
-    // Theo Lenin: chi phối kinh tế dẫn đến chi phối chính trị toàn diện,
-    // biểu hiện là mất khả năng hành động tự do trong một số lượt.
-    if (player.skipTurns > 0) {
+    // ── Đình trệ sản xuất (ô 30) ────────────────────────────────────────────
+    // Khác với trước (mất lượt hoàn toàn): người chơi vẫn tung xúc xắc và di
+    // chuyển bình thường, chỉ mất quyền thu phí thuê (khi là chủ sở hữu) và
+    // thâu tóm ô mới trong các lượt còn bị ảnh hưởng. Vẫn có quyền biểu quyết.
+    const wasStalled = player.skipTurns > 0;
+    if (wasStalled) {
       player.skipTurns--;
-      const remaining = player.skipTurns;
       room.log.push(
-        `⛓️ ${player.name} đang bị chi phối hoàn toàn — bỏ lượt này.` +
-        (remaining > 0 ? ` Còn ${remaining} lượt bị phạt tiếp.` : " Thoát khỏi chi phối sau lượt này!")
+        `🚧 ${player.name} đang đình trệ sản xuất — vẫn di chuyển nhưng không thể thu phí thuê hay thâu tóm ô mới lượt này.` +
+        (player.skipTurns > 0 ? ` Còn ${player.skipTurns} lượt bị ảnh hưởng tiếp.` : " Đây là lượt cuối bị ảnh hưởng!")
       );
-      return { room, diceValue: 0 };
     }
 
     const diceValue = Math.floor(Math.random() * 6) + 1;
-    const oldPosition = player.position;
     const newPosition = (player.position + diceValue) % BOARD_SIZE;
-
-    // Đi qua ô xuất phát → nhận thưởng
-    if (newPosition < oldPosition) {
-      player.money += PASS_GO_BONUS;
-      room.log.push(`✅ ${player.name} đi qua ô Xuất phát, nhận +$${PASS_GO_BONUS}.`);
-    }
 
     player.position = newPosition;
     const cell = BOARD_CELLS[newPosition];
@@ -145,20 +138,41 @@ export class GameEngine {
 
     if (cell.ownable) {
       // ── Ô sở hữu được (financial_capital / conglomerate / tnc) ────────────
-      // Chưa có chủ → mở quiz để "thâu tóm". Đã có chủ khác → trả phí thuê (rent),
-      // mô phỏng việc chiếm đoạt giá trị thặng dư qua xuất khẩu tư bản.
+      // Chưa có chủ → mở quiz để "thâu tóm" (cần đủ Tiền + Sức mạnh tối thiểu +
+      // trả lời đúng). Đã có chủ khác → trả phí thuê (rent), mô phỏng việc
+      // chiếm đoạt giá trị thặng dư qua xuất khẩu tư bản.
       const ownerId = room.cellOwners[cell.id];
       if (!ownerId) {
-        triggerQuiz = true;
-        this.startQuiz(room, player, cell);
+        if (wasStalled) {
+          room.log.push(`🚧 ${player.name} đang đình trệ — không thể thâu tóm ô mới tại [${cell.name}] lượt này.`);
+        } else if (player.softPower < MIN_SOFTPOWER_TO_BUY) {
+          room.log.push(
+            `⚠️ ${player.name} chưa đủ Sức mạnh để thâu tóm [${cell.name}] (cần ${MIN_SOFTPOWER_TO_BUY}, hiện có ${player.softPower}).`
+          );
+        } else {
+          triggerQuiz = true;
+          this.startQuiz(room, player, cell);
+        }
       } else if (ownerId === player.id) {
         room.log.push(`🏠 ${player.name} đang đứng trên tài sản của chính mình tại [${cell.name}] — miễn phí.`);
       } else {
-        this.payRent(room, player, cell, ownerId);
+        const owner = room.players.find(p => p.id === ownerId);
+        if (owner && owner.skipTurns > 0) {
+          room.log.push(`🚧 ${owner.name} đang đình trệ sản xuất — miễn phí thuê tại [${cell.name}] lần này.`);
+        } else {
+          this.payRent(room, player, cell, ownerId);
+        }
       }
     } else if (cell.effect.drawCard) {
       // ── Rút thẻ có phân loại (drawCardType) hoặc ngẫu nhiên ────────────────
-      drawnCard = this.drawCard(room, player, cell.effect.drawCardType);
+      // Ô Việt Nam (8 ô xanh lá) chỉ rút thẻ cho đúng vai Việt Nam — vai khác
+      // dừng tại đây coi như nghỉ ngơi, không có hiệu ứng gì. Ô Cơ hội (free)
+      // vẫn rút ngẫu nhiên cho mọi vai như cũ.
+      if (cell.type === "vietnam" && player.role !== "vietnam") {
+        room.log.push(`💤 ${player.name} dừng tại [${cell.name}] — không có hiệu ứng gì (chính sách chỉ áp dụng cho Việt Nam).`);
+      } else {
+        drawnCard = this.drawCard(room, player, cell.effect.drawCardType);
+      }
     } else if (cell.effect.councilVote) {
       // ── Hội đồng Tư vấn ──────────────────────────────────────────────────
       // Theo Lenin: Tư bản tài chính LÀ chủ nợ/chủ sở hữu của consortium
@@ -205,7 +219,10 @@ export class GameEngine {
 
     if (correct) {
       const price = cell.price ?? 0;
-      if (player.money >= price) {
+      const hasEnoughMoney = player.money >= price;
+      const hasEnoughPower = player.softPower >= MIN_SOFTPOWER_TO_BUY;
+
+      if (hasEnoughMoney && hasEnoughPower) {
         player.money -= price;
         room.cellOwners[cell.id] = player.id;
         player.ownedCells.push(cell.id);
@@ -213,7 +230,12 @@ export class GameEngine {
         room.log.push(`✅ ${player.name} trả lời đúng và THÂU TÓM [${cell.name}] với giá $${price}!`);
       } else {
         player.autonomy += 5;
-        room.log.push(`✅ ${player.name} trả lời đúng nhưng không đủ vốn để mua [${cell.name}] — vẫn ghi nhận hiểu biết (+5 Tự chủ).`);
+        const reason = !hasEnoughMoney && !hasEnoughPower
+          ? `chưa đủ vốn lẫn Sức mạnh (cần ${MIN_SOFTPOWER_TO_BUY})`
+          : !hasEnoughMoney
+          ? "chưa đủ vốn"
+          : `chưa đủ Sức mạnh (cần ${MIN_SOFTPOWER_TO_BUY}, hiện có ${player.softPower})`;
+        room.log.push(`✅ ${player.name} trả lời đúng nhưng ${reason} để mua [${cell.name}] — vẫn ghi nhận hiểu biết (+5 Tự chủ).`);
       }
     } else {
       const penalty = 30;
@@ -504,6 +526,11 @@ export class GameEngine {
     const baseRent = cell.rent ?? 0;
     const amount = Math.round(baseRent * this.rentMultiplier(payer.role));
 
+    // Chủ sở hữu luôn nhận đủ tiền (hệ thống tín dụng/ngân hàng bù đắp phần
+    // thiếu) — người trả không đủ khả năng chi trả bị quy đổi thẳng sang Tự
+    // chủ, mô phỏng việc thế chấp chủ quyền quốc gia để vay nợ.
+    const shortfall = Math.max(0, amount - payer.money);
+
     payer.money -= amount;
     owner.money += amount;
     room.log.push(
@@ -511,9 +538,21 @@ export class GameEngine {
       `(chiếm đoạt giá trị thặng dư qua ô đã bị thâu tóm).`
     );
 
+    // Thuế lệ thuộc — dẫm vào "biên giới kinh tế" của người khác luôn mất Tự chủ
+    payer.autonomy -= 5;
+    room.log.push(`🏛️ ${payer.name}: -5 Tự chủ (lệ thuộc vào biên giới kinh tế của ${owner.name})`);
+
     if (cell.rentAutonomy) {
       payer.autonomy += cell.rentAutonomy;
       room.log.push(`🏛️ ${payer.name}: ${cell.rentAutonomy} Tự chủ (xói mòn chủ quyền tại ${cell.name})`);
+    }
+
+    if (shortfall > 0) {
+      const debtPenalty = Math.ceil(shortfall / 10); // quy đổi: mỗi $10 nợ = -1 Tự chủ
+      payer.autonomy -= debtPenalty;
+      room.log.push(
+        `⚠️ ${payer.name} vỡ nợ $${shortfall} (không đủ tiền trả thuê) — thế chấp chủ quyền: -${debtPenalty} Tự chủ.`
+      );
     }
 
     this.clampStats(payer);
@@ -573,12 +612,18 @@ export class GameEngine {
   }
 
   // ── Giải quyết biểu quyết ────────────────────────────────────────────────────
+  // Trọng số phiếu = Sức mạnh của người bỏ phiếu tại thời điểm biểu quyết —
+  // mô phỏng quyền lực của các tập đoàn tài phiệt trong thể chế đa nguyên
+  // (Sức mạnh càng cao, phiếu càng có giá trị). Sàn tối thiểu 1 để không ai
+  // có phiếu bằng 0 tuyệt đối.
   private resolveVote(room: GameRoom): void {
     if (!room.voteSession) return;
 
     const tally: Record<number, number> = {};
-    Object.values(room.voteSession.votes).forEach(v => {
-      tally[v] = (tally[v] || 0) + 1;
+    Object.entries(room.voteSession.votes).forEach(([playerId, optionIndex]) => {
+      const voter = room.players.find(p => p.id === playerId);
+      const weight = voter ? Math.max(1, voter.softPower) : 1;
+      tally[optionIndex] = (tally[optionIndex] || 0) + weight;
     });
 
     const winnerIndex = Number(
@@ -665,14 +710,14 @@ export class GameEngine {
     }
 
     if (cellType === "crisis") {
-      if (target.role === "financial_capital") {
-        // Tư bản tài chính có vốn dự phòng lớn — mua lại tài sản rẻ khi khủng hoảng → mất 30%
-        if (m.money !== undefined && m.money < 0) m.money = Math.ceil(m.money * 0.3);
-      } else if (target.role === "developing_country") {
-        // Nước đang phát triển ít vốn dự phòng — chịu khủng hoảng nặng nhất → mất thêm 20%
-        if (m.money !== undefined && m.money < 0) m.money = Math.floor(m.money * 1.2);
+      // Khủng hoảng: TẤT CẢ mất 10% vốn hiện có, không phân biệt vai (không còn
+      // ưu ái Tư bản tài chính) — Nước đang phát triển chịu thêm cú sốc Tự chủ
+      // do hệ thống tài chính nội địa yếu kém, dễ bị tổn thương trước "biên
+      // giới mềm" của tư bản nước ngoài.
+      m.money = -Math.round(target.money * 0.10);
+      if (target.role === "developing_country") {
+        m.autonomy = (m.autonomy ?? 0) - 5;
       }
-      // vietnam: full standard effect (nhà nước bù đắp không đáng kể trong khủng hoảng toàn cầu)
     }
 
     return m;
