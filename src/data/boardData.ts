@@ -277,8 +277,8 @@ export const BOARD_CELLS: BoardCell[] = [
       question: "Ký hợp đồng khai thác dầu mỏ dài hạn với Liên minh dầu mỏ quốc tế?",
       acceptLabel: "✅ Ký hợp đồng — Nhận vốn đầu tư, nhượng quyền kiểm soát tài nguyên quốc gia",
       refuseLabel: "❌ Từ chối — Giữ chủ quyền tài nguyên, bảo vệ lợi ích quốc gia dài hạn",
-      acceptEffect: { money: 150, autonomy: -25 },
-      refuseEffect: { autonomy: 20, softPower: 15 },
+      acceptEffect: { money: 300, autonomy: -15 },
+      refuseEffect: { autonomy: 10, softPower: 10 },
     }
   },
   // 6
@@ -337,8 +337,8 @@ export const BOARD_CELLS: BoardCell[] = [
       question: "Chấp nhận tiêu chuẩn công nghệ của Liên minh Big Tech, phụ thuộc nền tảng nước ngoài?",
       acceptLabel: "✅ Hội nhập công nghệ — Tiếp cận công nghệ tiên tiến, chịu phụ thuộc nền tảng số ngoại",
       refuseLabel: "❌ Xây dựng tiêu chuẩn riêng — Giữ tự chủ công nghệ, tăng chi phí phát triển",
-      acceptEffect: { money: 80, autonomy: -20, softPower: -10 },
-      refuseEffect: { autonomy: 25, softPower: 10 },
+      acceptEffect: { money: 160, autonomy: -10, softPower: -5 },
+      refuseEffect: { autonomy: 15, softPower: 5 },
     }
   },
   // 14 — Ô Việt Nam: rút thẻ Chính sách Nhà nước (thuế quan bảo hộ)
@@ -369,8 +369,8 @@ export const BOARD_CELLS: BoardCell[] = [
       question: "Gia nhập Syndicate ngân hàng toàn cầu, chấp nhận điều kiện lãi suất do tổ hợp này kiểm soát?",
       acceptLabel: "✅ Gia nhập Syndicate — Tiếp cận nguồn vốn khổng lồ, mất quyền tự chủ chính sách tiền tệ",
       refuseLabel: "❌ Giữ độc lập tiền tệ — Bảo vệ quyền tự quyết về lãi suất và chính sách tiền tệ quốc gia",
-      acceptEffect: { money: 200, autonomy: -35 },
-      refuseEffect: { autonomy: 30, softPower: 10 },
+      acceptEffect: { money: 400, autonomy: -25 },
+      refuseEffect: { autonomy: 20, softPower: 5 },
     }
   },
   // 18
@@ -395,8 +395,8 @@ export const BOARD_CELLS: BoardCell[] = [
       question: "Chấp nhận liên minh nhân sự: để đại diện tập đoàn tài chính quốc tế tham gia Hội đồng Cố vấn Kinh tế Quốc gia?",
       acceptLabel: "✅ Chấp nhận liên minh nhân sự — Nhận hỗ trợ tài chính, chính sách kinh tế bị ảnh hưởng bởi tài phiệt",
       refuseLabel: "❌ Giữ bộ máy độc lập — Bảo vệ tính tự chủ chính sách, từ chối ảnh hưởng của tư bản tài chính",
-      acceptEffect: { money: 100, autonomy: -30, softPower: -15 },
-      refuseEffect: { autonomy: 25, softPower: 20 },
+      acceptEffect: { money: 200, autonomy: -20, softPower: -10 },
+      refuseEffect: { autonomy: 15, softPower: 15 },
     }
   },
   // 21
@@ -442,8 +442,8 @@ export const BOARD_CELLS: BoardCell[] = [
       question: "Mở cửa thị trường hoàn toàn theo điều kiện WTO — giảm bảo hộ nội địa để tiếp cận thị trường toàn cầu?",
       acceptLabel: "✅ Ký kết và mở cửa — Mở rộng xuất khẩu, tiếp cận 164 quốc gia thành viên WTO",
       refuseLabel: "❌ Duy trì bảo hộ chiến lược — Bảo vệ sản xuất và nông nghiệp nội địa trước cạnh tranh ngoại",
-      acceptEffect: { money: 150, autonomy: -20, softPower: 10 },
-      refuseEffect: { autonomy: 20, softPower: -5 },
+      acceptEffect: { money: 300, autonomy: -10, softPower: 5 },
+      refuseEffect: { autonomy: 10 },
     }
   },
   // 27 — Ô Việt Nam: rút thẻ Toàn cầu hóa (ASEAN/RCEP = khu vực hóa như chiến lược bảo vệ tập thể)
@@ -470,7 +470,7 @@ export const BOARD_CELLS: BoardCell[] = [
   {
     id: 30, name: "🚧 ĐÌNH TRỆ SẢN XUẤT", type: "crisis",
     description: "Vẫn di chuyển bình thường nhưng không thể thu phí thuê hay thâu tóm ô mới trong 2 lượt tiếp theo (vẫn được biểu quyết Hội đồng).",
-    effect: { autonomy: -40, softPower: -20, skipTurns: 2 }
+    effect: { autonomy: -30, softPower: -20, skipTurns: 2 }
   },
   // 31
   {

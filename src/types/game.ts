@@ -67,7 +67,7 @@ export interface QuizSession {
   question: string;
   options: string[];
   price: number;
-  expiresAt: number;  // epoch ms — hết giờ trả lời (15s), dùng để đồng bộ đếm ngược client
+  expiresAt: number;  // epoch ms — hết giờ trả lời (30s), dùng để đồng bộ đếm ngược client
 }
 
 export interface QuizResult {

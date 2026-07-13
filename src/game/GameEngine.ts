@@ -7,7 +7,7 @@ import {
 import { BOARD_CELLS, EVENT_CARDS } from "../data/boardData";
 
 const BOARD_SIZE   = 40;
-const QUIZ_TIME_MS  = 15000; // thời gian trả lời mỗi câu hỏi thâu tóm
+const QUIZ_TIME_MS  = 30000; // thời gian trả lời mỗi câu hỏi thâu tóm
 const MIN_SOFTPOWER_TO_BUY = 50; // Sức mạnh tối thiểu để thâu tóm ô sở hữu được (financial_capital / conglomerate / tnc)
 
 // ============================================
@@ -95,7 +95,9 @@ export class GameEngine {
     if (room.players.length > 6) return null;
 
     room.phase = "playing";
-    room.log.push(`🚀 Trò chơi bắt đầu với ${room.players.length} người! Lượt 1 — ${room.players[0].name} đi trước.`);
+    const startingIndex = Math.floor(Math.random() * room.players.length);
+    room.currentTurnIndex = startingIndex;
+    room.log.push(`🚀 Trò chơi bắt đầu với ${room.players.length} người! Lượt 1 — ${room.players[startingIndex].name} đi trước.`);
     return room;
   }
 
@@ -268,7 +270,7 @@ export class GameEngine {
     return { room, result };
   }
 
-  // ---------- BẮT ĐẦU ĐẾM 15s — chỉ khi client thật sự đã hiển thị câu hỏi ----------
+  // ---------- BẮT ĐẦU ĐẾM 30s — chỉ khi client thật sự đã hiển thị câu hỏi ----------
   // (sau khi người chơi đã đóng modal thông tin ô / đọc xong giải thích, không tính thời gian đó)
   startQuizClock(roomCode: string, socketId: string): QuizSession | null {
     const room = this.rooms.get(roomCode);
@@ -282,7 +284,7 @@ export class GameEngine {
     return session;
   }
 
-  // ---------- HẾT GIỜ TRẢ LỜI QUIZ (15s) — server tự xử lý như trả lời sai ----------
+  // ---------- HẾT GIỜ TRẢ LỜI QUIZ (30s) — server tự xử lý như trả lời sai ----------
   timeoutQuiz(roomCode: string, cellId: number, playerId: string): { room: GameRoom; result: QuizResult } | null {
     const room = this.rooms.get(roomCode);
     if (!room || room.phase !== "quiz" || !room.quizSession) return null;
