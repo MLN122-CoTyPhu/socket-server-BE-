@@ -7,21 +7,26 @@ import {
 import { BOARD_CELLS, EVENT_CARDS } from "../data/boardData";
 
 const BOARD_SIZE   = 40;
-const QUIZ_TIME_MS  = 15000; // thời gian trả lời mỗi câu hỏi thâu tóm
+const QUIZ_TIME_MS  = 30000; // thời gian trả lời mỗi câu hỏi thâu tóm
 const MIN_SOFTPOWER_TO_BUY = 50; // Sức mạnh tối thiểu để thâu tóm ô sở hữu được (financial_capital / conglomerate / tnc)
 
 // ============================================
 // ĐIỀU KIỆN XUẤT PHÁT THEO VAI — Chương 4 Mác-Lênin
 // ============================================
-// Nước đang phát triển: ít vốn (1200$), tự chủ cao (85) — chưa bị thâu tóm nhiều
-// Việt Nam: vốn trung bình (1500$), tự chủ khá (80) — có nhà nước điều tiết,
+// Nước đang phát triển: ít vốn (2000$), tự chủ cao (85) — chưa bị thâu tóm nhiều
+// Việt Nam: vốn trung bình (2400$), tự chủ khá (80) — có nhà nước điều tiết,
 //           Quyền lực mềm cao (65) — chính sách ngoại giao đa phương
-// Tư bản tài chính: nhiều vốn (2500$) — tích lũy tư bản lớn,
+// Tư bản tài chính: nhiều vốn (3400$) — tích lũy tư bản lớn,
 //                   tự chủ thấp (45) — phụ thuộc thị trường toàn cầu, không có nhà nước bảo hộ
+//
+// Vốn khởi điểm được nâng lên (trước đây 1200/1500/2500) vì ô đắt nhất trên
+// bàn giá $780 — với mức cũ, một người chơi "Nước đang phát triển" mua đúng 1
+// ô là gần như sạch túi ngay từ đầu game. Mức mới đảm bảo mua 1 ô bất kỳ vẫn
+// còn dư ít nhất ~1200$ để tiếp tục xoay sở.
 const ROLE_START_STATS: Record<PlayerRole, { money: number; autonomy: number; softPower: number }> = {
-  developing_country: { money: 1200, autonomy: 85, softPower: 45 },
-  vietnam:            { money: 1500, autonomy: 80, softPower: 65 },
-  financial_capital:  { money: 2500, autonomy: 45, softPower: 60 },
+  developing_country: { money: 2000, autonomy: 85, softPower: 45 },
+  vietnam:            { money: 2400, autonomy: 80, softPower: 65 },
+  financial_capital:  { money: 3400, autonomy: 45, softPower: 60 },
 };
 
 // ============================================
@@ -90,7 +95,9 @@ export class GameEngine {
     if (room.players.length > 6) return null;
 
     room.phase = "playing";
-    room.log.push(`🚀 Trò chơi bắt đầu với ${room.players.length} người! Lượt 1 — ${room.players[0].name} đi trước.`);
+    const startingIndex = Math.floor(Math.random() * room.players.length);
+    room.currentTurnIndex = startingIndex;
+    room.log.push(`🚀 Trò chơi bắt đầu với ${room.players.length} người! Lượt 1 — ${room.players[startingIndex].name} đi trước.`);
     return room;
   }
 
@@ -145,11 +152,11 @@ export class GameEngine {
       if (!ownerId) {
         if (wasStalled) {
           room.log.push(`🚧 ${player.name} đang đình trệ — không thể thâu tóm ô mới tại [${cell.name}] lượt này.`);
-        } else if (player.softPower < MIN_SOFTPOWER_TO_BUY) {
-          room.log.push(
-            `⚠️ ${player.name} chưa đủ Sức mạnh để thâu tóm [${cell.name}] (cần ${MIN_SOFTPOWER_TO_BUY}, hiện có ${player.softPower}).`
-          );
         } else {
+          // Câu hỏi luôn mở ra để trả lời (học là chính) — điều kiện Tiền + Sức
+          // mạnh tối thiểu chỉ được kiểm tra ở bước MUA sau khi trả lời đúng
+          // (xem answerQuiz), tương tự cách xử lý thiếu tiền. Không chặn câu
+          // hỏi ngay từ đầu chỉ vì thiếu Sức mạnh.
           triggerQuiz = true;
           this.startQuiz(room, player, cell);
         }
@@ -263,7 +270,7 @@ export class GameEngine {
     return { room, result };
   }
 
-  // ---------- BẮT ĐẦU ĐẾM 15s — chỉ khi client thật sự đã hiển thị câu hỏi ----------
+  // ---------- BẮT ĐẦU ĐẾM 30s — chỉ khi client thật sự đã hiển thị câu hỏi ----------
   // (sau khi người chơi đã đóng modal thông tin ô / đọc xong giải thích, không tính thời gian đó)
   startQuizClock(roomCode: string, socketId: string): QuizSession | null {
     const room = this.rooms.get(roomCode);
@@ -277,7 +284,7 @@ export class GameEngine {
     return session;
   }
 
-  // ---------- HẾT GIỜ TRẢ LỜI QUIZ (15s) — server tự xử lý như trả lời sai ----------
+  // ---------- HẾT GIỜ TRẢ LỜI QUIZ (30s) — server tự xử lý như trả lời sai ----------
   timeoutQuiz(roomCode: string, cellId: number, playerId: string): { room: GameRoom; result: QuizResult } | null {
     const room = this.rooms.get(roomCode);
     if (!room || room.phase !== "quiz" || !room.quizSession) return null;

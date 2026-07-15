@@ -195,7 +195,7 @@ io.on("connection", (socket) => {
 
     // Nếu quiz → chỉ gửi riêng cho người phải trả lời (không broadcast cả phòng —
     // người khác không cần thấy câu hỏi, chỉ cần chờ hết lượt như bình thường).
-    // Đồng hồ 15s CHƯA bắt đầu ở đây — client sẽ báo "quiz_ready" khi thật sự
+    // Đồng hồ 30s CHƯA bắt đầu ở đây — client sẽ báo "quiz_ready" khi thật sự
     // hiển thị câu hỏi cho người chơi (sau khi đóng modal thông tin ô), lúc đó
     // đồng hồ mới chạy. Ở đây chỉ đặt một lưới an toàn 90s phòng khi client
     // không bao giờ gửi "quiz_ready" (mất kết nối, lỗi...), tránh treo ván.
@@ -218,7 +218,7 @@ io.on("connection", (socket) => {
     persistIfFinished(room);
   });
 
-  // ---------- SẴN SÀNG XEM CÂU HỎI — bắt đầu đếm 15s thật sự ----------
+  // ---------- SẴN SÀNG XEM CÂU HỎI — bắt đầu đếm 30s thật sự ----------
   socket.on("quiz_ready", () => {
     const roomCode = socketRoomMap.get(socket.id);
     if (!roomCode) return;
@@ -226,7 +226,7 @@ io.on("connection", (socket) => {
     const updatedSession = engine.startQuizClock(roomCode, socket.id);
     if (!updatedSession) return;
 
-    // Hủy lưới an toàn cũ, bắt đầu đồng hồ 15s thật sự từ đây
+    // Hủy lưới an toàn cũ, bắt đầu đồng hồ 30s thật sự từ đây
     clearQuizTimeout(roomCode);
     socket.emit("quiz_started", updatedSession);
 
@@ -238,7 +238,7 @@ io.on("connection", (socket) => {
       emitQuizResultToAnswerer(outcome.room, outcome.result);
       io.to(roomCode).emit("game_update", outcome.room);
       persistIfFinished(outcome.room);
-    }, 15000);
+    }, 30000);
     quizTimeouts.set(roomCode, handle);
   });
 
