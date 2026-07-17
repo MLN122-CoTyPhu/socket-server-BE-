@@ -184,4 +184,21 @@ export const db = {
     if (error) throw error;
     return data;
   },
+
+  async deleteRoom(roomId: string) {
+    const { error } = await supabase
+      .from("game_rooms")
+      .delete()
+      .eq("id", roomId);
+    if (error) throw error;
+  },
+
+  async deleteRooms(roomIds: string[]) {
+    if (roomIds.length === 0) return;
+    const { error } = await supabase
+      .from("game_rooms")
+      .delete()
+      .in("id", roomIds);
+    if (error) throw error;
+  },
 };

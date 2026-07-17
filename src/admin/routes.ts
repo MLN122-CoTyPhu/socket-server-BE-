@@ -117,5 +117,44 @@ export function createAdminRouter(engine: GameEngine): Router {
     }
   });
 
+  // ---------- XÓA PHÒNG CHƠI ----------
+  router.delete("/rooms/:roomCode", requireAdmin, async (req, res) => {
+    try {
+      const { roomCode } = req.params;
+      const detail = await db.getRoomDetail(roomCode);
+      await db.deleteRoom(detail.room.id);
+      engine.deleteRoomByCode(roomCode);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /admin/rooms/:roomCode error:", err);
+      res.status(500).json({ error: "Không thể xóa phòng chơi." });
+    }
+  });
+
+  // ---------- DỌN DẸP PHÒNG CHỜ TRỐNG (player_count <= 1) ----------
+  router.post("/rooms/cleanup", requireAdmin, async (req, res) => {
+    try {
+      const rows = await db.listRooms({ status: "waiting" });
+      const roomsToDelete = rows.filter((row: any) => {
+        const live = engine.getRoomByCode(row.room_code);
+        const playerCount = live ? live.players.filter(p => !p.hasLeft).length : (row.room_players ?? []).length;
+        return playerCount <= 1;
+      });
+
+      const ids = roomsToDelete.map((r: any) => r.id);
+      if (ids.length > 0) {
+        await db.deleteRooms(ids);
+        roomsToDelete.forEach((r: any) => {
+          engine.deleteRoomByCode(r.room_code);
+        });
+      }
+
+      res.json({ ok: true, deletedCount: ids.length });
+    } catch (err) {
+      console.error("POST /admin/rooms/cleanup error:", err);
+      res.status(500).json({ error: "Không thể dọn dẹp phòng chờ." });
+    }
+  });
+
   return router;
 }

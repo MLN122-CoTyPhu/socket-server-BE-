@@ -24,9 +24,9 @@ const MIN_SOFTPOWER_TO_BUY = 50; // Sức mạnh tối thiểu để thâu tóm 
 // ô là gần như sạch túi ngay từ đầu game. Mức mới đảm bảo mua 1 ô bất kỳ vẫn
 // còn dư ít nhất ~1200$ để tiếp tục xoay sở.
 const ROLE_START_STATS: Record<PlayerRole, { money: number; autonomy: number; softPower: number }> = {
-  developing_country: { money: 2000, autonomy: 85, softPower: 45 },
-  vietnam:            { money: 2400, autonomy: 80, softPower: 65 },
-  financial_capital:  { money: 3400, autonomy: 45, softPower: 60 },
+  developing_country: { money: 1600, autonomy: 85, softPower: 45 },
+  vietnam:            { money: 1900, autonomy: 80, softPower: 65 },
+  financial_capital:  { money: 2700, autonomy: 45, softPower: 60 },
 };
 
 // ============================================
@@ -246,12 +246,12 @@ export class GameEngine {
       }
     } else {
       const penalty = 30;
-      player.money = Math.max(0, player.money - penalty);
+      player.money -= penalty;
       player.autonomy -= 10;
       room.log.push(`❌ ${player.name} trả lời sai câu hỏi tại [${cell.name}] — mất $${penalty} chi phí cơ hội và -10 Tự chủ.`);
     }
 
-    this.clampStats(player);
+    this.clampStats(player, room, `phạt câu hỏi tại [${cell.name}]`);
 
     const result: QuizResult = {
       correct,
@@ -300,11 +300,11 @@ export class GameEngine {
     const correctIndex = this.quizCorrectIndex.get(roomCode) ?? cell.quiz.correctIndex;
 
     const penalty = 30;
-    player.money = Math.max(0, player.money - penalty);
+    player.money -= penalty;
     player.autonomy -= 10;
     room.log.push(`⏰ ${player.name} hết thời gian trả lời tại [${cell.name}] — mất $${penalty} chi phí cơ hội và -10 Tự chủ.`);
 
-    this.clampStats(player);
+    this.clampStats(player, room, `phạt hết giờ tại [${cell.name}]`);
 
     const result: QuizResult = {
       correct: false,
@@ -356,8 +356,12 @@ export class GameEngine {
     room.hasRolled = false;
     room.turnNumber++;
 
-    const nextPlayer = room.players[room.currentTurnIndex];
-    room.log.push(`⏭️ Lượt ${room.turnNumber} — ${nextPlayer.name} đến lượt.`);
+    this.checkGameEnd(room);
+
+    if (room.phase === "playing") {
+      const nextPlayer = room.players[room.currentTurnIndex];
+      room.log.push(`⏭️ Lượt ${room.turnNumber} — ${nextPlayer.name} đến lượt.`);
+    }
 
     return room;
   }
@@ -402,9 +406,12 @@ export class GameEngine {
       room.currentTurnIndex = this.nextActiveIndex(room, room.currentTurnIndex);
       room.hasRolled = false;
       room.turnNumber++;
-      const nextPlayer = room.players[room.currentTurnIndex];
-      if (nextPlayer && nextPlayer.id !== player.id) {
-        room.log.push(`⏭️ Lượt ${room.turnNumber} — ${nextPlayer.name} đến lượt.`);
+      this.checkGameEnd(room);
+      if (room.phase === "playing") {
+        const nextPlayer = room.players[room.currentTurnIndex];
+        if (nextPlayer && nextPlayer.id !== player.id) {
+          room.log.push(`⏭️ Lượt ${room.turnNumber} — ${nextPlayer.name} đến lượt.`);
+        }
       }
     }
 
@@ -441,9 +448,10 @@ export class GameEngine {
     room.log.push(`⚠️ ${player.name} mất kết nối.`);
 
     const currentPlayer = room.players[room.currentTurnIndex];
-    if (currentPlayer.socketId === socketId) {
+    if (currentPlayer.socketId === socketId && room.phase === "playing") {
       room.currentTurnIndex = this.nextActiveIndex(room, room.currentTurnIndex);
       room.turnNumber++;
+      this.checkGameEnd(room);
     }
 
     return { room, player };
@@ -536,8 +544,6 @@ export class GameEngine {
     // Chủ sở hữu luôn nhận đủ tiền (hệ thống tín dụng/ngân hàng bù đắp phần
     // thiếu) — người trả không đủ khả năng chi trả bị quy đổi thẳng sang Tự
     // chủ, mô phỏng việc thế chấp chủ quyền quốc gia để vay nợ.
-    const shortfall = Math.max(0, amount - payer.money);
-
     payer.money -= amount;
     owner.money += amount;
     room.log.push(
@@ -554,15 +560,7 @@ export class GameEngine {
       room.log.push(`🏛️ ${payer.name}: ${cell.rentAutonomy} Tự chủ (xói mòn chủ quyền tại ${cell.name})`);
     }
 
-    if (shortfall > 0) {
-      const debtPenalty = Math.ceil(shortfall / 10); // quy đổi: mỗi $10 nợ = -1 Tự chủ
-      payer.autonomy -= debtPenalty;
-      room.log.push(
-        `⚠️ ${payer.name} vỡ nợ $${shortfall} (không đủ tiền trả thuê) — thế chấp chủ quyền: -${debtPenalty} Tự chủ.`
-      );
-    }
-
-    this.clampStats(payer);
+    this.clampStats(payer, room, `phí thuê tại [${cell.name}]`);
     this.clampStats(owner);
   }
 
@@ -655,6 +653,7 @@ export class GameEngine {
     room.voteSession = null;
     room.phase = "playing";
     this.clampStats(currentPlayer);
+    this.checkGameEnd(room);
   }
 
   // ── Áp dụng hiệu ứng ô với điều chỉnh THEO VAI (role-based modifiers) ────────
@@ -762,12 +761,22 @@ export class GameEngine {
         target.skipTurns = (target.skipTurns || 0) + fx.skipTurns;
         room.log.push(`⛓️ ${target.name}: bị chi phối ${fx.skipTurns} lượt (${source})`);
       }
-      this.clampStats(target);
+      this.clampStats(target, room, source);
     });
   }
 
-  private clampStats(player: Player): void {
-    player.money     = Math.max(0, player.money);
+  private clampStats(player: Player, room?: GameRoom, source?: string): void {
+    if (player.money < 0) {
+      const shortfall = -player.money;
+      const debtPenalty = Math.ceil(shortfall / 10);
+      player.autonomy = Math.max(0, player.autonomy - debtPenalty);
+      player.money = 0;
+      if (room) {
+        room.log.push(
+          `⚠️ ${player.name} vỡ nợ $${shortfall} (${source || "thâm hụt tài chính"}) — thế chấp chủ quyền: -${debtPenalty} Tự chủ.`
+        );
+      }
+    }
     player.autonomy  = Math.max(0, Math.min(100, player.autonomy));
     player.softPower = Math.max(0, Math.min(100, player.softPower));
   }
@@ -795,13 +804,19 @@ export class GameEngine {
   private checkGameEnd(room: GameRoom): void {
     // Theo Lenin: mất tự chủ kinh tế hoàn toàn = bị chi phối hoàn toàn về chính trị → thua
     const dominated = room.players.filter(p => p.autonomy <= 0 && !p.hasLeft);
-    if (dominated.length === 0) return;
+    const reachedTurnLimit = room.turnNumber > 50;
+
+    if (dominated.length === 0 && !reachedTurnLimit) return;
 
     room.phase = "finished";
     const scores = this.computeFinalRanking(room);
 
     const winner = scores[0];
-    room.log.push(`🏁 Trò chơi kết thúc! 🥇 ${winner.name} thắng với ${winner.score} điểm.`);
+    if (reachedTurnLimit) {
+      room.log.push(`🏁 Trò chơi kết thúc sau 50 lượt! 🥇 ${winner.name} thắng với ${winner.score} điểm.`);
+    } else {
+      room.log.push(`🏁 Trò chơi kết thúc! 🥇 ${winner.name} thắng với ${winner.score} điểm.`);
+    }
     room.log.push(
       `📚 Bài học Lênin: Trong nền kinh tế tư bản tài chính, ` +
       `không chỉ tích lũy tư bản (💰 tiền) mà phải bảo vệ chủ quyền kinh tế (🏛️ tự chủ). ` +
@@ -820,5 +835,9 @@ export class GameEngine {
       vietnam:            "🇻🇳 Việt Nam",
     };
     return map[role];
+  }
+
+  deleteRoomByCode(roomCode: string): void {
+    this.rooms.delete(roomCode);
   }
 }
